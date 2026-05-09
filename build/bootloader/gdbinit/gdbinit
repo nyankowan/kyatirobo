@@ -1,0 +1,2 @@
+source /home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/bootloader/gdbinit/symbols
+source /home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/bootloader/gdbinit/connect

@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/CMakeFiles/bootloader
+/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/CMakeFiles/bootloader.rule
+/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/CMakeFiles/bootloader-complete.rule
+/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

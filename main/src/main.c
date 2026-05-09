@@ -1,0 +1,108 @@
+#include <stdlib.h>
+
+#include <btstack_port_esp32.h>
+#include <btstack_run_loop.h>
+#include <btstack_stdio_esp32.h>
+#include <hci_dump.h>
+#include <hci_dump_embedded_stdout.h>
+#include <uni.h>
+#include "sdkconfig.h"
+
+#include "controller_data.h"
+#include "coordinate.h"
+#include "servo.h"
+#include "robomaster.h"
+
+#include <driver/ledc.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+// Sanity check
+#ifndef CONFIG_BLUEPAD32_PLATFORM_CUSTOM
+#error "Must use BLUEPAD32_PLATFORM_CUSTOM"
+#endif
+
+// Defined in my_platform.c
+struct uni_platform* get_my_platform(void);
+
+#define SERVO_COUNT 6//サーボの数
+int servo_pins[SERVO_COUNT] = {18, 19, 21, 22, 23, 25};//サーボの制御に使用するGPIO番号
+servo_range_t servo_ranges[SERVO_COUNT] = {SERVO_RANGE_180, SERVO_RANGE_180, SERVO_RANGE_180, SERVO_RANGE_180, SERVO_RANGE_270, SERVO_RANGE_270};//サーボの可動範囲
+servo_t servos[SERVO_COUNT];
+
+
+int app_main(void)
+{
+#ifdef CONFIG_ESP_CONSOLE_UART
+#ifndef CONFIG_BLUEPAD32_USB_CONSOLE_ENABLE
+    btstack_stdio_init();
+#endif  // CONFIG_BLUEPAD32_USB_CONSOLE_ENABLE
+#endif  // CONFIG_ESP_CONSOLE_UART
+
+    // Configure BTstack for ESP32 VHCI Controller
+    btstack_init();
+
+    // Must be called before uni_init()
+    uni_platform_set_custom(get_my_platform());
+ 
+    // Init Bluepad32.
+    uni_init(0 /* argc */, NULL /* argv */);
+
+    // Initialize LEDC for servo control
+    servo_timer_config_default();//デューティ値の範囲は0～65535の16bitタイマー, 周波数は50Hz前提の設定
+    servos_range_and_pin_init(servos, servo_ranges, servo_pins, SERVO_COUNT);//サーボ構造体の初期化
+    servos_channel_config(servos, SERVO_COUNT);
+
+    // if (can_driver_install_default_and_start() != ESP_OK) {
+    //     loge("Error: CAN driver install failed\n");
+    // }
+    //xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2048, NULL, 5, &can_rx_task_handle, APP_CPU_NUM);
+    //xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2048, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(controller_task, "controller_task", 4096, NULL, 1, &controller_task_handle, APP_CPU_NUM);
+
+    // Start platform-dependent tasks after Bluepad32 init completes.
+    // can_driver_install_default_and_start() and task creation happen in my_platform_on_init_complete().
+
+    // Does not return.
+    btstack_run_loop_execute();
+
+    return 0;
+}
+    
+// Controller task function
+void controller_task(void *pvParameters) {
+    //coordinate
+    struct direct xy = {3.0, 1.0};
+
+    while (1) {
+        if(!mypad.connected){
+            vTaskDelay(100 / portTICK_PERIOD_MS); // Delay to prevent spamming the console
+            continue;
+        }
+        if(mypad.LEFT){
+            xy.x -= 0.1;
+            if(xy.x < 1.0 && xy.x > -1.0 && xy.y < 1.0 && xy.y > -1.0)xy.x = 1.0;
+        }
+        if(mypad.RIGHT){
+            xy.x += 0.1;
+            if(xy.x > -1.0 && xy.x < 1.0 && xy.y < 1.0 && xy.y > -1.0)xy.x = -1.0;
+        }
+        if(mypad.UP){
+            xy.y += 0.1;
+            if(xy.y > -1.0 && xy.y < 1.0 && xy.x < 1.0 && xy.x > -1.0)xy.y = -1.0;
+        }
+        if(mypad.DOWN){
+            xy.y -= 0.1;
+            if(xy.y > -1.0 && xy.y < 1.0 && xy.x < 1.0 && xy.x > -1.0)xy.y = 1.0;
+        }
+
+        target_speed[0] = 100;
+        servos[0].angle_rad = to_polar(xy).theta;
+        logi("XY: (%.2f, %.2f), R: %.2f, Theta: %.2f\n", xy.x, xy.y, to_polar(xy).r, to_polar(xy).theta);
+        
+        // Update servo angles based on controller input
+        servos_update_angle(servos, SERVO_COUNT);
+        vTaskDelay(30 / portTICK_PERIOD_MS); // Delay to prevent spamming the console
+        //prev_mypad = current_mypad;
+    }
+}
+
