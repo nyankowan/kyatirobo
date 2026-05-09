@@ -1,3 +1,10 @@
 {
-    "idf.currentSetup": "/home/nyankowan/.espressif/v5.5.3/esp-idf"
+  "idf.currentSetup": "/home/nyankowan/.espressif/v5.5.3/esp-idf",
+  "idf.customExtraVars": {},
+  "clangd.path": "/home/nyankowan/.espressif/tools/esp-clang/esp-19.1.2_20250312/esp-clang/bin/clangd",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build"
+  ]
 }
