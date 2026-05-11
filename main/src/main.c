@@ -21,7 +21,7 @@
 #error "Must use BLUEPAD32_PLATFORM_CUSTOM"
 #endif
 
-// Defined in my_platform.c
+// Defined in controller.c
 struct uni_platform* get_my_platform(void);
 
 #define SERVO_COUNT 6//サーボの数
@@ -54,6 +54,7 @@ int app_main(void)
 
     // if (can_driver_install_default_and_start() != ESP_OK) {
     //     loge("Error: CAN driver install failed\n");
+    //     return -1;
     // }
     //xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2048, NULL, 5, &can_rx_task_handle, APP_CPU_NUM);
     //xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2048, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
@@ -71,7 +72,7 @@ int app_main(void)
 // Controller task function
 void controller_task(void *pvParameters) {
     //coordinate
-    struct direct xy = {3.0, 1.0};
+    direct_t xy = {3.0, 1.0};
 
     while (1) {
         if(!mypad.connected){
@@ -80,27 +81,31 @@ void controller_task(void *pvParameters) {
         }
         if(mypad.LEFT){
             xy.x -= 0.1;
-            if(xy.x < 1.0 && xy.x > -1.0 && xy.y < 1.0 && xy.y > -1.0)xy.x = 1.0;
+            if(xy.x < 1.0 && xy.x > -1.0 && xy.y < 1.0 && xy.y > -1.0)xy.x = 1.0;//原点付近への進入禁止
         }
         if(mypad.RIGHT){
             xy.x += 0.1;
-            if(xy.x > -1.0 && xy.x < 1.0 && xy.y < 1.0 && xy.y > -1.0)xy.x = -1.0;
+            if(xy.x > -1.0 && xy.x < 1.0 && xy.y < 1.0 && xy.y > -1.0)xy.x = -1.0;//原点付近への進入禁止
+            if(xy.x > 0 && xy.y<0)xy.x = 0.0;//270度以上への進入禁止
         }
         if(mypad.UP){
             xy.y += 0.1;
-            if(xy.y > -1.0 && xy.y < 1.0 && xy.x < 1.0 && xy.x > -1.0)xy.y = -1.0;
+            if(xy.y > -1.0 && xy.y < 1.0 && xy.x < 1.0 && xy.x > -1.0)xy.y = -1.0;//原点付近への進入禁止
         }
         if(mypad.DOWN){
             xy.y -= 0.1;
-            if(xy.y > -1.0 && xy.y < 1.0 && xy.x < 1.0 && xy.x > -1.0)xy.y = 1.0;
+            if(xy.y > -1.0 && xy.y < 1.0 && xy.x < 1.0 && xy.x > -1.0)xy.y = 1.0;//原点付近への進入禁止
+            if(xy.x > 0 && xy.y < 0)xy.y = 0.0;//0度以下への進入禁止
         }
 
         target_speed[0] = 100;
         servos[0].angle_rad = to_polar(xy).theta;
-        logi("XY: (%.2f, %.2f), R: %.2f, Theta: %.2f\n", xy.x, xy.y, to_polar(xy).r, to_polar(xy).theta);
+        
         
         // Update servo angles based on controller input
         servos_update_angle(servos, SERVO_COUNT);
+        controller_dump(&mypad);
+        //coordinate_dump(xy);
         vTaskDelay(30 / portTICK_PERIOD_MS); // Delay to prevent spamming the console
         //prev_mypad = current_mypad;
     }

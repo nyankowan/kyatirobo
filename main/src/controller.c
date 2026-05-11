@@ -59,6 +59,7 @@ static void my_platform_init(int argc, const char** argv) {
     logi("custom: init()\n");
 
     uni_gamepad_set_mappings_type(UNI_GAMEPAD_MAPPINGS_TYPE_SWITCH);
+    
 
 #if 0
     uni_gamepad_mappings_t mappings = GAMEPAD_DEFAULT_MAPPINGS;
@@ -153,7 +154,7 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
     //static uint8_t leds = 0;
     //static uint8_t enabled = true;
     static uni_controller_t prev = {0};
-    uni_gamepad_t gp;
+    uni_gamepad_t *gp;
 
     // Optimization to avoid processing the previous data so that the console
     // does not get spammed with a lot of logs, but remove it from your project.
@@ -169,41 +170,18 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
 
     switch (ctl->klass) {
         case UNI_CONTROLLER_CLASS_GAMEPAD:
-            //gp = &ctl->gamepad;
-            gp = uni_gamepad_remap(&ctl->gamepad);//ちゃんと動かない？
+            uni_gamepad_remap(&ctl->gamepad);
+            gp = &ctl->gamepad;
 
             // Update mypad
-            mypad.B = (gp.buttons & BUTTON_A) ? 1 : 0;
-            mypad.A = (gp.buttons & BUTTON_B) ? 1 : 0;
-            mypad.Y = (gp.buttons & BUTTON_X) ? 1 : 0;
-            mypad.X = (gp.buttons & BUTTON_Y) ? 1 : 0;
-            mypad.UP = (gp.dpad == DPAD_UP) ? 1 : 0;
-            mypad.DOWN = (gp.dpad == DPAD_DOWN) ? 1 : 0;
-            mypad.LEFT = (gp.dpad == DPAD_LEFT) ? 1 : 0;
-            mypad.RIGHT = (gp.dpad == DPAD_RIGHT) ? 1 : 0;
-            mypad.TL = (gp.buttons & BUTTON_THUMB_L) ? 1 : 0;
-            mypad.TR = (gp.buttons & BUTTON_THUMB_R) ? 1 : 0;
-            mypad.MINUS = (gp.misc_buttons & MISC_BUTTON_SELECT) ? 1 : 0;
-            mypad.PLUS = (gp.misc_buttons & MISC_BUTTON_START) ? 1 : 0;
-            mypad.HOME = (gp.misc_buttons & MISC_BUTTON_SYSTEM) ? 1 : 0;
-            mypad.CAPTURE = (gp.misc_buttons & MISC_BUTTON_CAPTURE) ? 1 : 0;
-            mypad.L = (gp.buttons & BUTTON_SHOULDER_L) ? 1 : 0;
-            mypad.R = (gp.buttons & BUTTON_SHOULDER_R) ? 1 : 0;
-            mypad.ZL = (gp.buttons & BUTTON_TRIGGER_L) ? 1 : 0;
-            mypad.ZR = (gp.buttons & BUTTON_TRIGGER_R) ? 1 : 0;
-            // Convert from -512..511 to -128..127
-            mypad.LX = (gp.axis_x * 256) / 512; 
-            mypad.LY = (gp.axis_y * 256) / 512;
-            mypad.RX = (gp.axis_rx * 256) / 512;
-            mypad.RY = (gp.axis_ry * 256) / 512;
-            mypad.battery_level = ctl->battery;
-            mypad.connected = true;
+            convert_gp(gp);
+            
             break;
         default:
             break;
     }
 }
-#define DEBUG_PROPERTY 1
+#define DEBUG_PROPERTY 0
 #if DEBUG_PROPERTY
 #define UNI_PROPERTY_NAME_UNI_AUTOFIRE_CPS "bp.uni.autofire"
 #define UNI_PROPERTY_NAME_UNI_BB_FIRE_THRESHOLD "bp.uni.bb_fire"
@@ -304,7 +282,7 @@ static void trigger_event_on_gamepad(uni_hid_device_t* d) {
 //
 struct uni_platform* get_my_platform(void) {
     static struct uni_platform plat = {
-        .name = "custom",
+        .name = "procon_platform",
         .init = my_platform_init,
         .on_init_complete = my_platform_on_init_complete,
         .on_device_discovered = my_platform_on_device_discovered,
@@ -317,6 +295,34 @@ struct uni_platform* get_my_platform(void) {
     };
 
     return &plat;
+}
+
+void convert_gp(uni_gamepad_t *gp){
+    mypad.A = (gp->buttons & BUTTON_A) ? 1 : 0;
+    mypad.B = (gp->buttons & BUTTON_B) ? 1 : 0;
+    mypad.X = (gp->buttons & BUTTON_X) ? 1 : 0;
+    mypad.Y = (gp->buttons & BUTTON_Y) ? 1 : 0;
+    mypad.UP = (gp->dpad == DPAD_UP) ? 1 : 0;
+    mypad.DOWN = (gp->dpad == DPAD_DOWN) ? 1 : 0;
+    mypad.LEFT = (gp->dpad == DPAD_LEFT) ? 1 : 0;
+    mypad.RIGHT = (gp->dpad == DPAD_RIGHT) ? 1 : 0;
+    mypad.TL = (gp->buttons & BUTTON_THUMB_L) ? 1 : 0;
+    mypad.TR = (gp->buttons & BUTTON_THUMB_R) ? 1 : 0;
+    mypad.MINUS = (gp->misc_buttons & MISC_BUTTON_SELECT) ? 1 : 0;
+    mypad.PLUS = (gp->misc_buttons & MISC_BUTTON_START) ? 1 : 0;
+    mypad.HOME = (gp->misc_buttons & MISC_BUTTON_SYSTEM) ? 1 : 0;
+    mypad.CAPTURE = (gp->misc_buttons & MISC_BUTTON_CAPTURE) ? 1 : 0;
+    mypad.L = (gp->buttons & BUTTON_SHOULDER_L) ? 1 : 0;
+    mypad.R = (gp->buttons & BUTTON_SHOULDER_R) ? 1 : 0;
+    mypad.ZL = (gp->buttons & BUTTON_TRIGGER_L) ? 1 : 0;
+    mypad.ZR = (gp->buttons & BUTTON_TRIGGER_R) ? 1 : 0;
+    // Convert from -512..511 to -128..127
+    mypad.LX = (gp->axis_x * 256) / 512; 
+    mypad.LY = (gp->axis_y * 256) / 512;
+    mypad.RX = (gp->axis_rx * 256) / 512;
+    mypad.RY = (gp->axis_ry * 256) / 512;
+    mypad.battery_level = ctl->battery;
+    mypad.connected = true;
 }
 
 void controller_dump(mypad_t* pad) {

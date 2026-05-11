@@ -3,10 +3,11 @@
 struct direct {
     double x;
     double y;
-} typedef direct;
+} typedef direct_t;
 struct polar {
     double r;
     double theta;//rad
-} typedef polar;
+} typedef polar_t;
 
-polar to_polar(direct d);
+polar_t to_polar(direct_t d);
+void coordinate_dump(direct_t *xy);

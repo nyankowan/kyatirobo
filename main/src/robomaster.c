@@ -2,11 +2,11 @@
 #define ROBOMASTER_MAX_COUNT 4//Never change this value
 #define CAN_TX_GPIO 5
 #define CAN_RX_GPIO 6
-float motor_speed[ROBOMASTER_MAX_COUNT] = {0,0,0,0};    //モーターの現在速度を格納するグローバル変数
-float target_speed[ROBOMASTER_MAX_COUNT] = {0,0,0,0};   //モーターの目標速度を格納するグローバル変数
+int16_t motor_speed[ROBOMASTER_MAX_COUNT] = {0,0,0,0};    //モーターの現在速度を格納するグローバル変数
+int16_t target_speed[ROBOMASTER_MAX_COUNT] = {0,0,0,0};   //モーターの目標速度を格納するグローバル変数
 int16_t current[ROBOMASTER_MAX_COUNT] = {0,0,0,0};      //モーターの電流値を格納するグローバル変数
 
-PID pid[ROBOMASTER_MAX_COUNT] = {
+pid_t pid[ROBOMASTER_MAX_COUNT] = {
     { .kp = 10.0, .ki = 0.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
     { .kp = 15.0, .ki = 3.0, .kd = 0.001, .integral = 0, .prev_error = 0 },
     { .kp = 10.0, .ki = 20.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
@@ -68,7 +68,7 @@ void can_tx_task(void *arg)
 
 
 
-int16_t pid_calc(PID *pid, float target, float current, float dt)
+int16_t pid_calc(pid_t *pid, float target, float current, float dt)
 {
     float error = target - current;
 
@@ -77,10 +77,8 @@ int16_t pid_calc(PID *pid, float target, float current, float dt)
 
     pid->prev_error = error;
     // アンチワインドアップ
-    /*
     if (pid->integral > 10000) pid->integral = 10000;
     if (pid->integral < -10000) pid->integral = -10000;
-    */
 
     float output = pid->kp * error
                  + pid->ki * pid->integral
@@ -95,5 +93,5 @@ esp_err_t can_driver_install_default_and_start(void) {
     twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
     esp_err_t e = twai_driver_install(&g_config, &t_config, &f_config);
     if(e != ESP_OK)return e;
-    return twai_start();;
+    return twai_start();
 }

@@ -1,3 +1,7 @@
+/**
+このヘッダーファイルをインクルードすると，コントローラーのデータが入ったmypad_t mypadを利用できるようになります．
+*/
+
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
 
@@ -39,6 +43,7 @@ extern mypad_t mypad;
 extern const mypad_t EMPTY_MYPAD;
 extern TaskHandle_t controller_task_handle;
 
+void convert_gp(uni_gamepad_t *gp);
 void controller_task(void *pvParameters);
 void controller_dump(mypad_t* pad);
 
