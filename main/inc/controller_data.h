@@ -40,10 +40,11 @@ typedef struct {
 } mypad_t;
 
 extern mypad_t mypad;
+extern mypad_t prev_mypad;
 extern const mypad_t EMPTY_MYPAD;
 extern TaskHandle_t controller_task_handle;
 
-void convert_gp(uni_gamepad_t *gp);
+void convert_gp(uni_gamepad_t *gp, mypad_t *mp);
 void controller_task(void *pvParameters);
 void controller_dump(mypad_t* pad);
 

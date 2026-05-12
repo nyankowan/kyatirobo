@@ -36,6 +36,7 @@ const mypad_t EMPTY_MYPAD = {
 };
 
 mypad_t mypad = EMPTY_MYPAD;
+mypad_t prev_mypad = EMPTY_MYPAD;
 TaskHandle_t controller_task_handle = NULL;
 
 #define PRO_CONTROLLER_COD 0b0010010100001000//cod=0x00002508
@@ -59,27 +60,6 @@ static void my_platform_init(int argc, const char** argv) {
     logi("custom: init()\n");
 
     uni_gamepad_set_mappings_type(UNI_GAMEPAD_MAPPINGS_TYPE_SWITCH);
-    
-
-#if 0
-    uni_gamepad_mappings_t mappings = GAMEPAD_DEFAULT_MAPPINGS;
-
-    // Inverted axis with inverted Y in RY.
-    mappings.axis_x = UNI_GAMEPAD_MAPPINGS_AXIS_RX;
-    mappings.axis_y = UNI_GAMEPAD_MAPPINGS_AXIS_RY;
-    mappings.axis_ry_inverted = true;
-    mappings.axis_rx = UNI_GAMEPAD_MAPPINGS_AXIS_X;
-    mappings.axis_ry = UNI_GAMEPAD_MAPPINGS_AXIS_Y;
-
-    // Invert A & B, X & Y
-    mappings.button_a = UNI_GAMEPAD_MAPPINGS_BUTTON_B;
-    mappings.button_b = UNI_GAMEPAD_MAPPINGS_BUTTON_A;
-    mappings.button_x = UNI_GAMEPAD_MAPPINGS_BUTTON_Y;
-    mappings.button_y = UNI_GAMEPAD_MAPPINGS_BUTTON_X;
-
-    uni_gamepad_set_mappings(&mappings);
-#endif
-       //uni_bt_service_set_enabled(true);
 }
 
 static void my_platform_on_init_complete(void) {
@@ -104,12 +84,6 @@ static uni_error_t my_platform_on_device_discovered(bd_addr_t addr, const char* 
     // @param name: could be NULL, could be zero-length, or might contain the name.
     // @param cod: Class of Device. See "uni_bt_defines.h" for possible values.
     // @param rssi: Received Signal Strength Indicator (RSSI) measured in dBms. The higher (255) the better.
-
-    // As an example, if you want to filter out keyboards, do:
-    // if (((cod & UNI_BT_COD_MINOR_MASK) & UNI_BT_COD_MINOR_KEYBOARD) == UNI_BT_COD_MINOR_KEYBOARD) {
-    //     logi("Ignoring keyboard\n");
-    //     return UNI_ERROR_IGNORE_DEVICE;
-    // }
     if(cod != PRO_CONTROLLER_COD) {
         logi("Ignoring non-Pro Controller device\n");
         return UNI_ERROR_IGNORE_DEVICE;
@@ -132,6 +106,8 @@ static void my_platform_on_device_connected(uni_hid_device_t* d) {
     mypad = EMPTY_MYPAD;
     mypad.battery_level = d->controller.battery;
     mypad.connected = true;
+
+    prev_mypad = EMPTY_MYPAD;
 }
 
 static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
@@ -151,35 +127,21 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
 }
 
 static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t* ctl) {
-    //static uint8_t leds = 0;
-    //static uint8_t enabled = true;
-    static uni_controller_t prev = {0};
-    uni_gamepad_t *gp;
+    static uni_controller_t prev_ctl = {0};
+    uni_gamepad_t *prev_gp = &prev_ctl.gamepad;
+    uni_gamepad_t *gp = &ctl->gamepad;
+    uni_gamepad_remap(gp);
+    uni_gamepad_remap(prev_gp);
+    // Update mypad
+    convert_gp(gp, &mypad);  
+    mypad.battery_level = ctl->battery;
+    convert_gp(prev_gp, &prev_mypad);
+    prev_mypad.battery_level = prev_ctl.battery;
 
-    // Optimization to avoid processing the previous data so that the console
-    // does not get spammed with a lot of logs, but remove it from your project.
-    if (memcmp(&prev, ctl, sizeof(*ctl)) == 0) {
+    if (memcmp(&prev_ctl, ctl, sizeof(*ctl)) == 0) {
         return;
     }
-    prev = *ctl;
-    // Print device Id before dumping gamepad.
-    // This could be very CPU intensive and might crash the ESP32.
-    // Remove these 2 lines in production code.
-    //    logi("(%p), id=%d, \n", d, uni_hid_device_get_idx_for_instance(d));
-    //    uni_controller_dump(ctl);
-
-    switch (ctl->klass) {
-        case UNI_CONTROLLER_CLASS_GAMEPAD:
-            uni_gamepad_remap(&ctl->gamepad);
-            gp = &ctl->gamepad;
-
-            // Update mypad
-            convert_gp(gp);
-            
-            break;
-        default:
-            break;
-    }
+    prev_ctl = *ctl;
 }
 #define DEBUG_PROPERTY 0
 #if DEBUG_PROPERTY
@@ -297,32 +259,32 @@ struct uni_platform* get_my_platform(void) {
     return &plat;
 }
 
-void convert_gp(uni_gamepad_t *gp){
-    mypad.A = (gp->buttons & BUTTON_A) ? 1 : 0;
-    mypad.B = (gp->buttons & BUTTON_B) ? 1 : 0;
-    mypad.X = (gp->buttons & BUTTON_X) ? 1 : 0;
-    mypad.Y = (gp->buttons & BUTTON_Y) ? 1 : 0;
-    mypad.UP = (gp->dpad == DPAD_UP) ? 1 : 0;
-    mypad.DOWN = (gp->dpad == DPAD_DOWN) ? 1 : 0;
-    mypad.LEFT = (gp->dpad == DPAD_LEFT) ? 1 : 0;
-    mypad.RIGHT = (gp->dpad == DPAD_RIGHT) ? 1 : 0;
-    mypad.TL = (gp->buttons & BUTTON_THUMB_L) ? 1 : 0;
-    mypad.TR = (gp->buttons & BUTTON_THUMB_R) ? 1 : 0;
-    mypad.MINUS = (gp->misc_buttons & MISC_BUTTON_SELECT) ? 1 : 0;
-    mypad.PLUS = (gp->misc_buttons & MISC_BUTTON_START) ? 1 : 0;
-    mypad.HOME = (gp->misc_buttons & MISC_BUTTON_SYSTEM) ? 1 : 0;
-    mypad.CAPTURE = (gp->misc_buttons & MISC_BUTTON_CAPTURE) ? 1 : 0;
-    mypad.L = (gp->buttons & BUTTON_SHOULDER_L) ? 1 : 0;
-    mypad.R = (gp->buttons & BUTTON_SHOULDER_R) ? 1 : 0;
-    mypad.ZL = (gp->buttons & BUTTON_TRIGGER_L) ? 1 : 0;
-    mypad.ZR = (gp->buttons & BUTTON_TRIGGER_R) ? 1 : 0;
+void convert_gp(uni_gamepad_t *gp, mypad_t *mp){
+    mp->A = (gp->buttons & BUTTON_A) ? 1 : 0;
+    mp->B = (gp->buttons & BUTTON_B) ? 1 : 0;
+    mp->X = (gp->buttons & BUTTON_X) ? 1 : 0;
+    mp->Y = (gp->buttons & BUTTON_Y) ? 1 : 0;
+    mp->UP = (gp->dpad == DPAD_UP) ? 1 : 0;
+    mp->DOWN = (gp->dpad == DPAD_DOWN) ? 1 : 0;
+    mp->LEFT = (gp->dpad == DPAD_LEFT) ? 1 : 0;
+    mp->RIGHT = (gp->dpad == DPAD_RIGHT) ? 1 : 0;
+    mp->TL = (gp->buttons & BUTTON_THUMB_L) ? 1 : 0;
+    mp->TR = (gp->buttons & BUTTON_THUMB_R) ? 1 : 0;
+    mp->MINUS = (gp->misc_buttons & MISC_BUTTON_SELECT) ? 1 : 0;
+    mp->PLUS = (gp->misc_buttons & MISC_BUTTON_START) ? 1 : 0;
+    mp->HOME = (gp->misc_buttons & MISC_BUTTON_SYSTEM) ? 1 : 0;
+    mp->CAPTURE = (gp->misc_buttons & MISC_BUTTON_CAPTURE) ? 1 : 0;
+    mp->L = (gp->buttons & BUTTON_SHOULDER_L) ? 1 : 0;
+    mp->R = (gp->buttons & BUTTON_SHOULDER_R) ? 1 : 0;
+    mp->ZL = (gp->buttons & BUTTON_TRIGGER_L) ? 1 : 0;
+    mp->ZR = (gp->buttons & BUTTON_TRIGGER_R) ? 1 : 0;
     // Convert from -512..511 to -128..127
-    mypad.LX = (gp->axis_x * 256) / 512; 
-    mypad.LY = (gp->axis_y * 256) / 512;
-    mypad.RX = (gp->axis_rx * 256) / 512;
-    mypad.RY = (gp->axis_ry * 256) / 512;
-    mypad.battery_level = ctl->battery;
-    mypad.connected = true;
+    mp->LX = (gp->axis_x * 256) / 512; 
+    mp->LY = (gp->axis_y * 256) / 512;
+    mp->RX = (gp->axis_rx * 256) / 512;
+    mp->RY = (gp->axis_ry * 256) / 512;
+
+    mp->connected = true;
 }
 
 void controller_dump(mypad_t* pad) {
