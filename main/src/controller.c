@@ -143,45 +143,9 @@ static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t
     }
     prev_ctl = *ctl;
 }
-#define DEBUG_PROPERTY 0
-#if DEBUG_PROPERTY
-#define UNI_PROPERTY_NAME_UNI_AUTOFIRE_CPS "bp.uni.autofire"
-#define UNI_PROPERTY_NAME_UNI_BB_FIRE_THRESHOLD "bp.uni.bb_fire"
-#define UNI_PROPERTY_NAME_UNI_BB_MOVE_THRESHOLD "bp.uni.bb_move"
-#define UNI_PROPERTY_NAME_UNI_C64_POT_MODE "bp.uni.c64pot"
-#define UNI_PROPERTY_NAME_UNI_MODEL "bp.uni.model"
-#define UNI_PROPERTY_NAME_UNI_MOUSE_EMULATION "bp.uni.mouseemu"
-#define UNI_PROPERTY_NAME_UNI_SERIAL_NUMBER "bp.uni.serial"
-#define UNI_PROPERTY_NAME_UNI_VENDOR "bp.uni.vendor"
-
-static const uni_property_t my_platform_properties[] = {
-    {UNI_PROPERTY_IDX_UNI_AUTOFIRE_CPS, UNI_PROPERTY_NAME_UNI_AUTOFIRE_CPS, UNI_PROPERTY_TYPE_U8,
-     .default_value.u8 = 0},
-    {UNI_PROPERTY_IDX_UNI_BB_FIRE_THRESHOLD, UNI_PROPERTY_NAME_UNI_BB_FIRE_THRESHOLD, UNI_PROPERTY_TYPE_U32,
-     .default_value.u32 = 5000},
-    {UNI_PROPERTY_IDX_UNI_BB_MOVE_THRESHOLD, UNI_PROPERTY_NAME_UNI_BB_MOVE_THRESHOLD, UNI_PROPERTY_TYPE_U32,
-     .default_value.u32 = 1500},
-    {UNI_PROPERTY_IDX_UNI_C64_POT_MODE, UNI_PROPERTY_NAME_UNI_C64_POT_MODE, UNI_PROPERTY_TYPE_U8,
-     .default_value.u8 = 0},
-    {UNI_PROPERTY_IDX_UNI_MODEL, UNI_PROPERTY_NAME_UNI_MODEL, UNI_PROPERTY_TYPE_STRING,
-     .default_value.str = "Unknown", .flags = UNI_PROPERTY_FLAG_READ_ONLY},
-    {UNI_PROPERTY_IDX_UNI_MOUSE_EMULATION, UNI_PROPERTY_NAME_UNI_MOUSE_EMULATION, UNI_PROPERTY_TYPE_U8,
-     .default_value.u8 = 3},
-    {UNI_PROPERTY_IDX_UNI_SERIAL_NUMBER, UNI_PROPERTY_NAME_UNI_SERIAL_NUMBER, UNI_PROPERTY_TYPE_U32,
-     .default_value.u32 = 0, .flags = UNI_PROPERTY_FLAG_READ_ONLY},
-    {UNI_PROPERTY_IDX_UNI_VENDOR, UNI_PROPERTY_NAME_UNI_VENDOR, UNI_PROPERTY_TYPE_STRING,
-     .default_value.str = "Unknown", .flags = UNI_PROPERTY_FLAG_READ_ONLY},
-};
-#endif
 
 static const uni_property_t* my_platform_get_property(uni_property_idx_t idx) {
-#if DEBUG_PROPERTY
-    if (idx >= UNI_PROPERTY_IDX_LAST && idx < UNI_PROPERTY_IDX_UNI_LAST) {
-        return &my_platform_properties[idx - UNI_PROPERTY_IDX_LAST];
-    }
-#else
     ARG_UNUSED(idx);
-#endif
     return NULL;
 }
 
@@ -192,31 +156,6 @@ static const uni_property_t* my_platform_get_property(uni_property_idx_t idx) {
  * You can customize this function to handle other events, such as when Bluetooth is enabled/disabled, etc.
  */
 static void my_platform_on_oob_event(uni_platform_oob_event_t event, void* data) {
-    // switch (event) {
-    //     case UNI_PLATFORM_OOB_GAMEPAD_SYSTEM_BUTTON: {
-    //         uni_hid_device_t* d = data;
-
-    //         if (d == NULL) {
-    //             loge("ERROR: my_platform_on_oob_event: Invalid NULL device\n");
-    //             return;
-    //         }
-    //         logi("custom: on_device_oob_event(): %d\n", event);
-
-    //         my_platform_instance_t* ins = get_my_platform_instance(d);
-    //         ins->gamepad_seat = ins->gamepad_seat == GAMEPAD_SEAT_A ? GAMEPAD_SEAT_B : GAMEPAD_SEAT_A;
-
-    //         trigger_event_on_gamepad(d);
-    //         break;
-    //     }
-
-    //     case UNI_PLATFORM_OOB_BLUETOOTH_ENABLED:
-    //         logi("custom: Bluetooth enabled: %d\n", (bool)(data));
-    //         break;
-
-    //     default:
-    //         logi("my_platform_on_oob_event: unsupported event: 0x%04x\n", event);
-    //         break;
-    // }
 }
 
 //

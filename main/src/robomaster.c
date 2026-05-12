@@ -1,7 +1,7 @@
 #include "robomaster.h"
 #define ROBOMASTER_MAX_COUNT 4//Never change this value
 #define CAN_TX_GPIO 5
-#define CAN_RX_GPIO 6
+#define CAN_RX_GPIO 4   //don't setting 6,flash/spi path interference
 int16_t motor_speed[ROBOMASTER_MAX_COUNT] = {0,0,0,0};    //モーターの現在速度を格納するグローバル変数
 int16_t target_speed[ROBOMASTER_MAX_COUNT] = {0,0,0,0};   //モーターの目標速度を格納するグローバル変数
 int16_t current[ROBOMASTER_MAX_COUNT] = {0,0,0,0};      //モーターの電流値を格納するグローバル変数
@@ -91,7 +91,7 @@ esp_err_t can_driver_install_default_and_start(void) {
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(CAN_TX_GPIO, CAN_RX_GPIO, TWAI_MODE_NORMAL);
     twai_timing_config_t t_config = TWAI_TIMING_CONFIG_1MBITS();
     twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-    esp_err_t e = twai_driver_install(&g_config, &t_config, &f_config);
-    if(e != ESP_OK)return e;
+    esp_err_t e = twai_driver_install(&g_config, &t_config, &f_config);//could not find property 12,11
+    if(e != ESP_OK) return e;
     return twai_start();
 }

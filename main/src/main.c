@@ -52,16 +52,12 @@ int app_main(void)
     servos_range_and_pin_init(servos, servo_ranges, servo_pins, SERVO_COUNT);//サーボ構造体の初期化
     servos_channel_config(servos, SERVO_COUNT);
 
-    // if (can_driver_install_default_and_start() != ESP_OK) {
-    //     loge("Error: CAN driver install failed\n");
-    //     return -1;
-    // }
-    //xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2048, NULL, 5, &can_rx_task_handle, APP_CPU_NUM);
-    //xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2048, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
+     if (can_driver_install_default_and_start() != ESP_OK) {
+        loge("Error: CAN driver install failed\n");
+    }
+    xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2024, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2024, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
     xTaskCreatePinnedToCore(controller_task, "controller_task", 4096, NULL, 1, &controller_task_handle, APP_CPU_NUM);
-
-    // Start platform-dependent tasks after Bluepad32 init completes.
-    // can_driver_install_default_and_start() and task creation happen in my_platform_on_init_complete().
 
     // Does not return.
     btstack_run_loop_execute();

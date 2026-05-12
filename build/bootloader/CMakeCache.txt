@@ -258,7 +258,7 @@ IGNORE_EXTRA_COMPONENT:UNINITIALIZED=
 PROJECT_SOURCE_DIR:UNINITIALIZED=/home/nyankowan/espidfprojects/v5.5.4/kyatirobo
 
 //No help, variable specified on the command line.
-PYTHON:UNINITIALIZED=/home/nyankowan/.espressif/tools/python/v5.5.4/venv/bin/python
+PYTHON:UNINITIALIZED=/home/nyankowan/.espressif/tools/python/v5.5.4/venv/bin/python3
 
 //No help, variable specified on the command line.
 PYTHON_DEPS_CHECKED:UNINITIALIZED=1
