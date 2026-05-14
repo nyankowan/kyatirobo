@@ -54,6 +54,7 @@ int app_main(void)
 
      if (can_driver_install_default_and_start() != ESP_OK) {
         loge("Error: CAN driver install failed\n");
+        return -1;
     }
     xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2024, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
     xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2024, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
@@ -94,13 +95,17 @@ void controller_task(void *pvParameters) {
             if(xy.x > 0 && xy.y < 0)xy.y = 0.0;//0度以下への進入禁止
         }
 
-        target_speed[0] = 100;
+        for(int i = 0;i<4;i++){
+            pid[i].target = mypad.RY*2;
+        }
+
+        printf("%d:%d:%d:%d\n",current[0],current[1],current[2],current[3]);
         servos[0].angle_rad = to_polar(xy).theta;
         
         
         // Update servo angles based on controller input
         servos_update_angle(servos, SERVO_COUNT);
-        controller_dump(&mypad);
+        //controller_dump(&mypad);
         //coordinate_dump(xy);
         vTaskDelay(30 / portTICK_PERIOD_MS); // Delay to prevent spamming the console
         //prev_mypad = current_mypad;

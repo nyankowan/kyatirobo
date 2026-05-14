@@ -1,17 +1,15 @@
 #include "robomaster.h"
-#define ROBOMASTER_MAX_COUNT 4//Never change this value
+
 #define CAN_TX_GPIO 5
 #define CAN_RX_GPIO 4   //don't setting 6,flash/spi path interference
-int16_t motor_speed[ROBOMASTER_MAX_COUNT] = {0,0,0,0};    //モーターの現在速度を格納するグローバル変数
-int16_t target_speed[ROBOMASTER_MAX_COUNT] = {0,0,0,0};   //モーターの目標速度を格納するグローバル変数
-int16_t current[ROBOMASTER_MAX_COUNT] = {0,0,0,0};      //モーターの電流値を格納するグローバル変数
-
+robomaster_t robomas[ROBOMASTER_MAX_COUNT];
 pid_t pid[ROBOMASTER_MAX_COUNT] = {
-    { .kp = 10.0, .ki = 0.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
-    { .kp = 15.0, .ki = 3.0, .kd = 0.001, .integral = 0, .prev_error = 0 },
-    { .kp = 10.0, .ki = 20.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
-    { .kp = 10.0, .ki = 20.0, .kd = 0.01, .integral = 0, .prev_error = 0 }
+    {.mode = TARGET_MODE_NONE,      .kp = 10.0, .ki = 0.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
+    {.mode = TARGET_MODE_TORQUE,    .kp = 15.0, .ki = 3.0, .kd = 0.001, .integral = 0, .prev_error = 0 },
+    {.mode = TARGET_MODE_SPEED,     .kp = 10.0, .ki = 20.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
+    {.mode = TARGET_MODE_ANGLE,     .kp = 10.0, .ki = 20.0, .kd = 0.01, .integral = 0, .prev_error = 0 }
 };
+int16_t current[ROBOMASTER_MAX_COUNT] = {0,0,0,0};//ロボマスに実際に送る電流値
 
 TaskHandle_t can_rx_task_handle = NULL;
 TaskHandle_t can_tx_task_handle = NULL;
@@ -19,14 +17,14 @@ TaskHandle_t can_tx_task_handle = NULL;
 void can_rx_task(void *arg)
 {
     twai_message_t rx_msg;
-    
     while (1) {
         if (twai_receive(&rx_msg, portMAX_DELAY) == ESP_OK) {
-
             if (rx_msg.identifier >= 0x201 && rx_msg.identifier <= 0x204) {
                 int i = rx_msg.identifier - 0x201;
-
-                motor_speed[i] =(int16_t)((rx_msg.data[2] << 8) | rx_msg.data[3]);
+                robomas[i].angle = (int16_t)((rx_msg.data[0] << 8) | rx_msg.data[1]);
+                robomas[i].speed = (int16_t)((rx_msg.data[2] << 8) | rx_msg.data[3]);
+                robomas[i].torque = (int16_t)((rx_msg.data[4] << 8) | rx_msg.data[5]);
+                robomas[i].temperature = (int8_t)rx_msg.data[6];
             }
         }
     }
@@ -44,9 +42,8 @@ void can_tx_task(void *arg)
     while (1) {
         //PID制御計算
         for (int i = 0; i < ROBOMASTER_MAX_COUNT; i++) {
-            current[i] = pid_calc(&pid[i], target_speed[i], motor_speed[i], dt);
+            current[i] = pid_calc(&pid[i], &robomas[i], dt);
         }
-
         //電流制限
         /*
         for (int i = 0; i < ROBOMASTER_MAX_COUNT; i++) {
@@ -54,7 +51,6 @@ void can_tx_task(void *arg)
             if (current[i] < -10000) current[i] = -10000;
         }
         */
-
         //CANメッセージのデータフィールドに電流値を格納
         for (int i = 0; i < 4; i++) {
             tx_msg.data[i*2]     = current[i] >> 8;
@@ -66,11 +62,23 @@ void can_tx_task(void *arg)
     }
 }
 
-
-
-int16_t pid_calc(pid_t *pid, float target, float current, float dt)
+int16_t pid_calc(pid_t *pid, robomaster_t *robomas, float dt)
 {
-    float error = target - current;
+    float error;
+    switch(pid->mode){
+        default:
+        case TARGET_MODE_NONE:
+            return pid->current;
+        case TARGET_MODE_TORQUE:
+            error = pid->torque - robomas->torque;
+            break;
+        case TARGET_MODE_SPEED:
+            error = pid->speed - robomas->speed;
+            break;
+        case TARGET_MODE_ANGLE:
+            error = pid->angle - robomas->angle;
+            break;
+    }
 
     pid->integral += error * dt;
     float derivative = (error - pid->prev_error) / dt;
@@ -85,6 +93,12 @@ int16_t pid_calc(pid_t *pid, float target, float current, float dt)
                  + pid->kd * derivative;
 
     return (int16_t)output;
+}
+
+void set_pid_target(int i, int16_t target){
+    pid[i].target = target;
+    pid[i].integral = 0;
+    pid[i].prev_error = 0;
 }
 
 esp_err_t can_driver_install_default_and_start(void) {

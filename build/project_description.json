@@ -1,7 +1,7 @@
 {
     "version":            "1.2",
     "project_name":       "kyatirobo",
-    "project_version":    "7ae7654-dirty",
+    "project_version":    "1368dfb-dirty",
     "project_path":       "/home/nyankowan/espidfprojects/v5.5.4/kyatirobo",
     "idf_path":           "/home/nyankowan/.espressif/v5.5.4/esp-idf",
     "build_dir":          "/home/nyankowan/espidfprojects/v5.5.4/kyatirobo/build",

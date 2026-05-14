@@ -1,2 +1,0 @@
-Command: cmake -G Ninja -DPYTHON_DEPS_CHECKED=1 -DPYTHON=/home/nyankowan/.espressif/tools/python/v5.5.4/venv/bin/python3 -DESP_PLATFORM=1 -DCCACHE_ENABLE=0 /home/nyankowan/espidfprojects/v5.5.4/kyatirobo
-info: Choice XTAL_FREQ has multiple active selections. The last one will be used: XTAL_FREQ_AUTO .
