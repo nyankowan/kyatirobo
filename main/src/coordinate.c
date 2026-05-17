@@ -1,7 +1,7 @@
 #ifndef COORDINATE_H
 #define COORDINATE_H
 
-#define TAG "Coordinate"
+#define COORDINATE_TAG "Coordinate"
 #include "coordinate.h"
 #include "esp_log.h"
 
@@ -14,6 +14,6 @@ polar_t to_polar(direct_t d){
 }
 
 void coordinate_dump(direct_t *xy){
-    ESP_LOGI(TAG, "XY: (%.2f, %.2f), R: %.2f, Theta: %.2f\n", xy->x, xy->y, to_polar(*xy).r, to_polar(*xy).theta);
+    ESP_LOGI(COORDINATE_TAG, "XY: (%.2f, %.2f), R: %.2f, Theta: %.2f\n", xy->x, xy->y, to_polar(*xy).r, to_polar(*xy).theta);
 }
 #endif // COORDINATE_H

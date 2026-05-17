@@ -38,11 +38,11 @@ typedef enum {
 typedef struct {
     servo_range_t range;           // サーボの可動範囲
     int gpio_num;                  // サーボの制御に使用するGPIO番号
-    ledc_channel_t channel;        // LEDCチャンネル
-    ledc_timer_t timer;            // LEDCタイマー
+    ledc_channel_t channel;        // LEDCチャンネル設定
+    ledc_timer_t timer;            // LEDCタイマー設定
     float angle_rad;               // 角度（ラジアン）
-    uint32_t min_duty;             // 最小デューティ値 (0度/0rad時)
-    uint32_t max_duty;             // 最大デューティ値 (180度/π or 270度/3π/2時)
+    uint32_t min_duty;             // 最小デューティ値 (0度/0rad時)default: SERVO_ANGLE_MIN
+    uint32_t max_duty;             // 最大デューティ値 (180度/π or 270度/3π/2時) default: SERVO_ANGLE_MAX
 } servo_t;
 
 typedef ledc_timer_config_t servo_timer_config_t;

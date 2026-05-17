@@ -21,12 +21,26 @@
 #error "Must use BLUEPAD32_PLATFORM_CUSTOM"
 #endif
 
+#define MAIN_TAG "main"
+
 // Defined in controller.c
 struct uni_platform* get_my_platform(void);
 
+#define LOOP_MS 30
+
 #define SERVO_COUNT 6//サーボの数
+#define CAN_TX_GPIO 5
+#define CAN_RX_GPIO 4
 int servo_pins[SERVO_COUNT] = {18, 19, 21, 22, 23, 25};//サーボの制御に使用するGPIO番号
-servo_range_t servo_ranges[SERVO_COUNT] = {SERVO_RANGE_180, SERVO_RANGE_180, SERVO_RANGE_180, SERVO_RANGE_180, SERVO_RANGE_270, SERVO_RANGE_270};//サーボの可動範囲
+servo_range_t servo_ranges[SERVO_COUNT] = {
+    SERVO_RANGE_180, 
+    SERVO_RANGE_180, 
+    SERVO_RANGE_180, 
+    SERVO_RANGE_180, 
+    SERVO_RANGE_270, 
+    SERVO_RANGE_270
+};//サーボの可動範囲
+
 servo_t servos[SERVO_COUNT];
 
 
@@ -52,13 +66,13 @@ int app_main(void)
     servos_range_and_pin_init(servos, servo_ranges, servo_pins, SERVO_COUNT);//サーボ構造体の初期化
     servos_channel_config(servos, SERVO_COUNT);
 
-     if (can_driver_install_default_and_start() != ESP_OK) {
+     if (can_driver_install_default_and_start(CAN_TX_GPIO,CAN_RX_GPIO) != ESP_OK) {
         loge("Error: CAN driver install failed\n");
         return -1;
     }
     xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2024, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2024, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(controller_task, "controller_task", 4096, NULL, 1, &controller_task_handle, APP_CPU_NUM);
+    //xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2024, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(controller_task, "controller_task", 4096, NULL, 5, &controller_task_handle, APP_CPU_NUM);
 
     // Does not return.
     btstack_run_loop_execute();
@@ -68,6 +82,7 @@ int app_main(void)
     
 // Controller task function
 void controller_task(void *pvParameters) {
+    //TickType_t last_wake = xTaskGetTickCount();
     //coordinate
     direct_t xy = {3.0, 1.0};
 
@@ -96,19 +111,18 @@ void controller_task(void *pvParameters) {
         }
 
         for(int i = 0;i<4;i++){
-            pid[i].target = mypad.RY*2;
+            pid[i].target_speed = mypad.RY*2;
         }
-
-        printf("%d:%d:%d:%d\n",current[0],current[1],current[2],current[3]);
         servos[0].angle_rad = to_polar(xy).theta;
-        
+        fprintf(stderr,"%d\n",current[2]);
         
         // Update servo angles based on controller input
         servos_update_angle(servos, SERVO_COUNT);
         //controller_dump(&mypad);
-        //coordinate_dump(xy);
-        vTaskDelay(30 / portTICK_PERIOD_MS); // Delay to prevent spamming the console
-        //prev_mypad = current_mypad;
+        //coordinate_dump(&xy);
+        can_tx(LOOP_MS);
+        //vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(LOOP_MS));//wdt err?
+        vTaskDelay(LOOP_MS / portTICK_PERIOD_MS); // Delay to prevent spamming the console
     }
 }
 
