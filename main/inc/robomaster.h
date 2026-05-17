@@ -27,8 +27,6 @@ typedef struct {
     float kd;
     float integral;
     float prev_error;
-
-    int rotation;//回転数
 } pid_t;
 
 typedef struct {
@@ -36,6 +34,8 @@ typedef struct {
     int16_t speed;
     int16_t torque;
     int8_t  temperature;
+
+    int rotation;//回転数
 
 } robomaster_t;
 

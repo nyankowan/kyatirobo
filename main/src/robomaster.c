@@ -1,7 +1,7 @@
 #include "robomaster.h"
 
-robomaster_t robomas[ROBOMASTER_MAX_COUNT];
-robomaster_t prev_robomas[ROBOMASTER_MAX_COUNT];
+robomaster_t robomas[ROBOMASTER_MAX_COUNT] = {{0},{0},{0},{0}};
+robomaster_t prev_robomas[ROBOMASTER_MAX_COUNT] = {{0},{0},{0},{0}};
 pid_t pid[ROBOMASTER_MAX_COUNT] = {
     {.mode = TARGET_MODE_NONE,      .kp = 10.0, .ki = 0.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
     {.mode = TARGET_MODE_TORQUE,    .kp = 15.0, .ki = 3.0, .kd = 0.001, .integral = 0, .prev_error = 0 },
@@ -34,9 +34,9 @@ void can_rx_task(void *arg)
                 robomas[i].torque = (int16_t)((rx_msg.data[4] << 8) | rx_msg.data[5]);
                 robomas[i].temperature = (int8_t)rx_msg.data[6];
                 if(robomas[i].angle-prev_robomas[i].angle>4095){
-                    rotation--;
+                    robomas[i].rotation--;
                 }else if(robomas[i].angle-prev_robomas[i].angle<-4096){
-                    rotation++;
+                    robomas[i].rotation++;
                 }
             }
         }
