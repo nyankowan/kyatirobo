@@ -2,7 +2,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <esp_err.h>
-#define ROBOMASTER_MAX_COUNT 4
+#define ROBOMASTER_MAX_COUNT 8//
 
 //PID制御用の構造体
 typedef enum{
@@ -27,6 +27,8 @@ typedef struct {
     float kd;
     float integral;
     float prev_error;
+    uint16_t precurrent;
+    uint16_t threshold_current;
 } pid_t;
 
 typedef struct {
@@ -50,10 +52,8 @@ extern TaskHandle_t can_tx_task_handle;
 int16_t pid_calc(pid_t *pid, robomaster_t *robomas, float dt);
 
 void set_pid_target(int i, int16_t target);
-/**
-@loop ms
-*/
-void can_tx(int loop);
+
+esp_err_t can_tx(uint32_t id);
 
 /**
 ロボマスター専用のTWAI設定
@@ -64,3 +64,5 @@ esp_err_t can_driver_install_default_and_start(int can_tx_gpio,int can_rx_gpio);
 //can通信関数のプロトタイプ宣言
 void can_rx_task(void *arg);
 void can_tx_task(void *arg);
+void robomas_dump(robomaster_t *rbms);
+void current_dump(int16_t cr[ROBOMASTER_MAX_COUNT]);
