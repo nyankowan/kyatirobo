@@ -28,16 +28,25 @@ struct uni_platform* get_my_platform(void);
 
 #define LOOP_MS 30
 
-#define SERVO_COUNT 6//サーボの数
-#define CAN_TX_GPIO 5
-#define CAN_RX_GPIO 4
-int servo_pins[SERVO_COUNT] = {18, 19, 21, 22, 23, 25};//サーボの制御に使用するGPIO番号
+#define SERVO_COUNT 7//サーボの数7
+
+//don't use 6-11.these pins for flash memorry
+//0 for boot/reset(pull up)
+//1,3 for UART0
+//2 for boot strap
+//34-39 input only
+//safe to use 4,5,12-15,18-23,25-32(depends on use)
+#define CAN_TX_GPIO_0 4
+#define CAN_RX_GPIO_0 5
+
+int servo_pins[SERVO_COUNT] = {18, 19, 21, 22, 23, 25, 26};//サーボの制御に使用するGPIO番号
 servo_range_t servo_ranges[SERVO_COUNT] = {
     SERVO_RANGE_180, 
     SERVO_RANGE_180, 
     SERVO_RANGE_180, 
     SERVO_RANGE_180, 
     SERVO_RANGE_270, 
+    SERVO_RANGE_270,
     SERVO_RANGE_270
 };//サーボの可動範囲
 
@@ -66,13 +75,27 @@ int app_main(void)
     servos_range_and_pin_init(servos, servo_ranges, servo_pins, SERVO_COUNT);//サーボ構造体の初期化
     servos_channel_config(servos, SERVO_COUNT);
 
-     if (can_driver_install_default_and_start(CAN_TX_GPIO,CAN_RX_GPIO) != ESP_OK) {
+#if 1
+    if (can_driver_install_default_and_start(CAN_TX_GPIO_0,CAN_RX_GPIO_0) != ESP_OK) {
         loge("Error: CAN driver install failed\n");
         return -1;
     }
+
     xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2024, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
-    //xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2024, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(controller_task, "controller_task", 4096, NULL, 5, &controller_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2024, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
+#else//error
+    esp_err_t e = can_driver_install_default_and_start_2bus(CAN_TX_GPIO_0,CAN_RX_GPIO_0,CAN_TX_GPIO_1,CAN_RX_GPIO_1);
+    if (e != ESP_OK) {
+        loge("Error: CAN driver install failed\n");
+        char s[100];
+        loge("%s\n",esp_err_to_name_r(e,s,100));
+        return -1;
+    }
+
+    xTaskCreatePinnedToCore(can_rx_task_2bus, "can_rx_task", 2024, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(can_tx_task_2bus, "can_tx_task", 2024, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
+#endif
+    xTaskCreatePinnedToCore(controller_task, "controller_task", 4096, NULL, 1, &controller_task_handle, APP_CPU_NUM);
 
     // Does not return.
     btstack_run_loop_execute();
@@ -109,18 +132,24 @@ void controller_task(void *pvParameters) {
             if(xy.y > -1.0 && xy.y < 1.0 && xy.x < 1.0 && xy.x > -1.0)xy.y = 1.0;//原点付近への進入禁止
             if(xy.x > 0 && xy.y < 0)xy.y = 0.0;//0度以下への進入禁止
         }
+        if(mypad.A == true && prev_mypad.A == false){//少し取りこぼす.get_mypad関数などを作って，mypadから値を取得するようにすると良さそう（タスク間のqueueみたいな役割？），prev_mypadは消して良い．
+            printf("pressed A\n");
+        }
 
         for(int i = 0;i<4;i++){
             pid[i].target_speed = mypad.RY*2;
         }
         servos[0].angle_rad = to_polar(xy).theta;
-        fprintf(stderr,"%d\n",current[2]);
+        //fprintf(stderr,"%d\n",current[2]);
+
         
         // Update servo angles based on controller input
         servos_update_angle(servos, SERVO_COUNT);
+        robomas_dump(&robomas[2]);
+        current_dump(current);
         //controller_dump(&mypad);
         //coordinate_dump(&xy);
-        can_tx(LOOP_MS);
+        //can_tx(LOOP_MS); //don't call this in controller_task.it's unstable.create tx_task.
         //vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(LOOP_MS));//wdt err?
         vTaskDelay(LOOP_MS / portTICK_PERIOD_MS); // Delay to prevent spamming the console
     }
