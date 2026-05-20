@@ -1,12 +1,23 @@
 #include "robomaster.h"
+#include "esp_log.h"
+#define ROBOMAS_TAG "ROBOMASTER"
 
-robomaster_t robomas[ROBOMASTER_MAX_COUNT] = {{0},{0},{0},{0},{0},{0},{0},{0}};
+robomaster_t robomas[ROBOMASTER_MAX_COUNT] = {
+    {.gear_ratio = 19},
+    {.gear_ratio = 19},
+    {.gear_ratio = 19},
+    {.gear_ratio = 19},
+    {.gear_ratio = 19},
+    {.gear_ratio = 19},
+    {.gear_ratio = 19},
+    {.gear_ratio = 19}
+};
 robomaster_t prev_robomas[ROBOMASTER_MAX_COUNT] = {{0},{0},{0},{0},{0},{0},{0},{0}};
 pid_t pid[ROBOMASTER_MAX_COUNT] = {
     {.mode = TARGET_MODE_NONE,      .kp = 10.0, .ki = 0.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
     {.mode = TARGET_MODE_TORQUE,    .kp = 15.0, .ki = 3.0, .kd = 0.001, .integral = 0, .prev_error = 0 },
     {.mode = TARGET_MODE_SPEED,     .kp = 5.0,  .ki = 0.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
-    {.mode = TARGET_MODE_ANGLE,     .kp = 0.01, .ki = 0.1, .kd = 0.02, .integral = 0, .prev_error = 0, .precurrent = 500, .threshold_current = 100},
+    {.mode = TARGET_MODE_ANGLE,     .kp = 0.02, .ki = 0.15, .kd = 0.01, .integral = 0, .prev_error = 0, .precurrent = 450, .threshold_err = 100},
     {.mode = TARGET_MODE_NONE,      .kp = 10.0, .ki = 0.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
     {.mode = TARGET_MODE_TORQUE,    .kp = 15.0, .ki = 3.0, .kd = 0.001, .integral = 0, .prev_error = 0 },
     {.mode = TARGET_MODE_SPEED,     .kp = 5.0,  .ki = 0.0, .kd = 0.0, .integral = 0, .prev_error = 0 },
@@ -28,10 +39,7 @@ void can_rx_task(void *arg)
         if (twai_receive(&rx_msg, portMAX_DELAY) == ESP_OK) {
             if (rx_msg.identifier >= 0x201 && rx_msg.identifier <= 0x208) {
                 int i = rx_msg.identifier - 0x201;
-                prev_robomas[i].angle = robomas[i].angle;
-                prev_robomas[i].speed = robomas[i].speed;
-                prev_robomas[i].torque = robomas[i].torque;
-                prev_robomas[i].temperature = robomas[i].temperature;
+                prev_robomas[i] = robomas[i];
 
                 robomas[i].angle = (int16_t)((rx_msg.data[0] << 8) | rx_msg.data[1]);
                 robomas[i].speed = (int16_t)((rx_msg.data[2] << 8) | rx_msg.data[3]);
@@ -42,6 +50,7 @@ void can_rx_task(void *arg)
                 }else if(robomas[i].angle-prev_robomas[i].angle<-4096){
                     robomas[i].rotation++;
                 }
+                robomas[i].abso_angle = robomas[i].angle + robomas[i].rotation*8192; 
             }
         }
     }
@@ -95,7 +104,7 @@ int16_t pid_calc(pid_t *pid, robomaster_t *robomas, float dt)
             error = pid->target_speed - robomas->speed;
             break;
         case TARGET_MODE_ANGLE:
-            error = pid->target_angle*19 - (robomas->angle + robomas->rotation*8192);
+            error = pid->target_angle*robomas->gear_ratio - robomas->abso_angle;
             break;
     }
 
@@ -108,9 +117,9 @@ int16_t pid_calc(pid_t *pid, robomaster_t *robomas, float dt)
     if (pid->integral < -10000) pid->integral = -10000;
 
     int sign = 0;
-    if(error > pid->threshold_current){
+    if(error > pid->threshold_err){
         sign = 1;
-    }else if(error< -1*pid->threshold_current){
+    }else if(error< -1*pid->threshold_err){
         sign = -1;
     }
     float output = pid->kp * error
@@ -140,8 +149,8 @@ esp_err_t can_driver_install_default_and_start(int tx_gpio,int rx_gpio) {
     return twai_start();
 }
 void robomas_dump(robomaster_t *rbms){
-    fprintf(stderr,"angle:%5d,\tspeed:%5d,\ttorque:%5d,\ttemperature:%5d,\trotation:%d\n",rbms->angle,rbms->speed,rbms->torque,rbms->temperature,rbms->rotation);
+    ESP_LOGD(ROBOMAS_TAG,"angle:%5d,\tspeed:%5d,\ttorque:%5d,\ttemperature:%5d,\trotation:%d",rbms->angle,rbms->speed,rbms->torque,rbms->temperature,rbms->rotation);
 }
 void current_dump(int16_t cr[ROBOMASTER_MAX_COUNT]){
-    fprintf(stderr,"0:%5d,\t1:%5d,\t2:%5d,\t3:%5d,\t4:%5d,\t5:%5d,\t6:%5d,\t7:%5d\n",cr[0],cr[1],cr[2],cr[3],cr[4],cr[5],cr[6],cr[7]);
+    ESP_LOGD(ROBOMAS_TAG,"0:%5d,\t1:%5d,\t2:%5d,\t3:%5d,\t4:%5d,\t5:%5d,\t6:%5d,\t7:%5d",cr[0],cr[1],cr[2],cr[3],cr[4],cr[5],cr[6],cr[7]);
 }

@@ -20,7 +20,7 @@ typedef struct {
         int16_t target_current;//TARGET_MODE_NONE
         int16_t target_torque;//TARRGET_MODE_TORQUE
         int16_t target_speed;//TARRGET_MODE_SPEED
-        int16_t target_angle;//TARRGET_MODE_ANGLE
+        int target_angle;//TARRGET_MODE_ANGLE,0~8191 one rotation 1 : gear_ratio
     };
     float kp;
     float ki;
@@ -28,7 +28,7 @@ typedef struct {
     float integral;
     float prev_error;
     uint16_t precurrent;
-    uint16_t threshold_current;
+    uint16_t threshold_err;
 } pid_t;
 
 typedef struct {
@@ -38,6 +38,8 @@ typedef struct {
     int8_t  temperature;
 
     int rotation;//回転数
+    int abso_angle;//=angle + rotation*8192
+    float gear_ratio;//1 : gear_ratio
 
 } robomaster_t;
 

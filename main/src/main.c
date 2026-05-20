@@ -115,7 +115,7 @@ void controller_task(void *pvParameters) {
         // }
         pid[3].target_angle = mypad.RY*16;
         servos[0].angle_rad = to_polar(xy).theta;
-        current_dump(current);
+        //current_dump(current);
         robomas_dump(&robomas[3]);
         // Update servo angles based on controller input
         servos_update_angle(servos, SERVO_COUNT);
