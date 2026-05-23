@@ -7,9 +7,10 @@
 #define ROBOMASTER_TXID_0 0x200
 #define ROBOMASTER_TXID_1 0x1ff
 #define MAX_CURRENT 16384
-#define MAX_SPEED_ON_MODE_ANGLE 300
-#define ANGLE_RANGE 8192
-#define MOTOR_MAX_RPM 500
+#define MAX_SPEED_ON_MODE_ANGLE 500 //モーター軸基準
+#define ENCODER_RESOLUTION 8192 //モーター軸基準
+#define MOTOR_MAX_RPM 500.0 //モータ軸基準
+#define ROBOMAS_GEAR_RATIO (3591.0 / 187.0)//大の方
 
 //PID制御用の構造体
 typedef enum{
@@ -38,7 +39,7 @@ typedef struct {
         int16_t target_speed;//TARRGET_MODE_SPEED,rpm
         int16_t target_angle;//TARRGET_MODE_ANGLE,rad
     };
-    pidK_t torque;
+    pidK_t torque;//usually, dji motor doesn't need torque control
     pidK_t speed;
     pidK_t angle;
     float gear_ratio;
@@ -46,7 +47,7 @@ typedef struct {
 
 typedef struct {
     int16_t angle;//0~8191,90度2048
-    int16_t speed;
+    float speed;//LPFで更新するためfloat
     int16_t torque;
     int8_t  temperature;
 
@@ -63,7 +64,7 @@ extern TaskHandle_t can_tx_task_handle;
 
 int32_t robomas_get_position(robomaster_t *r);
 // PID制御関数のプロトタイプ宣言
-float pid_calc(pid_t *pid, robomaster_t *robomas, float error, float dt);
+float pid_calc(pid_t *pid, robomaster_t *robomas, float dt);
 
 esp_err_t can_tx(uint32_t id);
 

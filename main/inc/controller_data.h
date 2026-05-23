@@ -31,10 +31,10 @@ typedef struct {
     bool PLUS;  // スタートボタン
     bool HOME;  // システムボタン oobイベントで取得可能かも
     bool CAPTURE; // キャプチャボタン
-    int16_t LX;     // 左スティックのX軸: -128～127
-    int16_t LY;     // 左スティックのY軸: -128～127
-    int16_t RX;     // 右スティックのX軸: -128～127
-    int16_t RY;     // 右スティックのY軸: -128～127
+    int16_t LX;     // 左スティックのX軸: -256～256
+    int16_t LY;     // 左スティックのY軸: -256～256
+    int16_t RX;     // 右スティックのX軸: -256～256
+    int16_t RY;     // 右スティックのY軸: -256～256
     uint8_t battery_level; // バッテリー残量 (0-255)
     bool connected; // コントローラーが接続されているかどうか
 } mypad_t;

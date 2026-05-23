@@ -70,9 +70,9 @@ int app_main(void)
         loge("Error: CAN driver install failed\n");
         return -1;
     }
-    xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2024, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2024, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(controller_task, "controller_task", 4096, NULL, 5, &controller_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2048, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 4096, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(controller_task, "controller_task", 4096, NULL, 1, &controller_task_handle, APP_CPU_NUM);
 
     // Does not return.
     btstack_run_loop_execute();
@@ -113,9 +113,13 @@ void controller_task(void *pvParameters) {
         // for(int i = 0;i<8;i++){
         //     pid[i].target_speed = mypad.RY*2;
         // }
-        pid[3].target_angle = mypad.RY*16;
+        pid[0].target = mypad.RY;
+        pid[1].target_torque = mypad.RY;
+        pid[2].target_speed = (float)mypad.RY / 32.0;//-256~256 / 32 = -8 ~ 8
+        pid[3].target_angle = mypad.RY * 4*M_PI/ 512;
+        pid[4].target_angle = mypad.RY*2;
         servos[0].angle_rad = to_polar(xy).theta;
-        current_dump(current);
+        //current_dump(current);
         robomas_dump(&robomas[3]);
         // Update servo angles based on controller input
         servos_update_angle(servos, SERVO_COUNT);
