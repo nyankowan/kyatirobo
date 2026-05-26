@@ -21,10 +21,16 @@
 #error "Must use BLUEPAD32_PLATFORM_CUSTOM"
 #endif
 
+#define DEBUG 0
 #define MAIN_TAG "main"
 
 // Defined in controller.c
 struct uni_platform* get_my_platform(void);
+
+void controll_task(void *pvParameters);
+#if DEBUG
+void debug_task(void *arg);
+#endif
 
 #define LOOP_MS 30
 
@@ -42,7 +48,11 @@ servo_range_t servo_ranges[SERVO_COUNT] = {
 };//サーボの可動範囲
 
 servo_t servos[SERVO_COUNT];
+mypad_t mypad;
+mypad_t prev_mypad;
 
+//coordinate
+direct_t xy = {3.0, 0.0};
 
 int app_main(void)
 {
@@ -66,14 +76,16 @@ int app_main(void)
     servos_range_and_pin_init(servos, servo_ranges, servo_pins, SERVO_COUNT);//サーボ構造体の初期化
     servos_channel_config(servos, SERVO_COUNT);
 
-     if (can_driver_install_default_and_start(CAN_TX_GPIO,CAN_RX_GPIO) != ESP_OK) {
+    if (can_driver_install_default_and_start(CAN_TX_GPIO,CAN_RX_GPIO) != ESP_OK) {
         loge("Error: CAN driver install failed\n");
         return -1;
     }
     xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2048, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 4096, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(controller_task, "controller_task", 4096, NULL, 1, &controller_task_handle, APP_CPU_NUM);
-
+    xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2048, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(controll_task, "controll_task", 4096, NULL, 1, NULL, APP_CPU_NUM);
+#if DEBUG
+    xTaskCreate(debug_task, "debug", 4096, NULL, 1, NULL);
+#endif
     // Does not return.
     btstack_run_loop_execute();
 
@@ -81,12 +93,10 @@ int app_main(void)
 }
     
 // Controller task function
-void controller_task(void *pvParameters) {
+void controll_task(void *pvParameters) {
     //TickType_t last_wake = xTaskGetTickCount();
-    //coordinate
-    direct_t xy = {3.0, 1.0};
-
     while (1) {
+        get_gpdata(&mypad);
         if(!mypad.connected){
             vTaskDelay(100 / portTICK_PERIOD_MS); // Delay to prevent spamming the console
             continue;
@@ -109,24 +119,52 @@ void controller_task(void *pvParameters) {
             if(xy.y > -1.0 && xy.y < 1.0 && xy.x < 1.0 && xy.x > -1.0)xy.y = 1.0;//原点付近への進入禁止
             if(xy.x > 0 && xy.y < 0)xy.y = 0.0;//0度以下への進入禁止
         }
+        if(mypad.A == true && prev_mypad.A == false){
+            printf("pressed A");
+        }
 
-        // for(int i = 0;i<8;i++){
-        //     pid[i].target_speed = mypad.RY*2;
-        // }
-        pid[0].target = mypad.RY;
-        pid[1].target_torque = mypad.RY;
-        pid[2].target_speed = (float)mypad.RY / 32.0;//-256~256 / 32 = -8 ~ 8
-        pid[3].target_angle = mypad.RY * 4*M_PI/ 512;
+        pid[0].target_current = mypad.RY*3;
+        pid[1].target_current = mypad.RY;
+        pid[2].target_speed = (float)mypad.RY / 64.0;//-512~512 / 32 = -8 ~ 8
+        pid[3].target_angle = to_polar(xy).theta;
+        //pid[3].target_angle = (float)mypad.RY * 2*M_PI / 1024.0;
         pid[4].target_angle = mypad.RY*2;
         servos[0].angle_rad = to_polar(xy).theta;
-        //current_dump(current);
-        robomas_dump(&robomas[3]);
         // Update servo angles based on controller input
         servos_update_angle(servos, SERVO_COUNT);
-        //controller_dump(&mypad);
-        //coordinate_dump(&xy);
-        //vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(LOOP_MS));//wdt err
+        coordinate_dump(&xy);
+        // vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(LOOP_MS));//wdt err
         vTaskDelay(LOOP_MS / portTICK_PERIOD_MS); // Delay to prevent spamming the console
+        prev_mypad = mypad;
     }
 }
+#if DEBUG
+void debug_task(void *arg)
+{
+    while(1){
+        printf("==================================\n");
 
+        // printf("tx stack: %u\n",
+        //     uxTaskGetStackHighWaterMark(can_tx_task_handle));
+
+        // printf("rx stack: %u\n",
+        //     uxTaskGetStackHighWaterMark(can_rx_task_handle));
+
+        twai_status_info_t status;
+        twai_get_status_info(&status);
+
+        printf(
+            "state=%d txerr=%lu rxerr=%lu txfail=%lu\n",
+            status.state,
+            status.tx_error_counter,
+            status.rx_error_counter,
+            status.tx_failed_count
+        );
+        current_dump(current);
+        robomas_dump(&robomas[2]);
+        controller_dump(&mypad);
+        coordinate_dump(&xy);
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+#endif

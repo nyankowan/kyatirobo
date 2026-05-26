@@ -1,16 +1,22 @@
 #include "robomaster.h"
 #define ROBOMAS_NUM 5
-robomaster_t robomas[ROBOMAS_NUM] = {{0},{0},{0},{0},{0}};
+robomaster_t robomas[ROBOMAS_NUM] = {
+    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO},
+    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO},
+    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO},
+    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO},
+    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO}
+};
 robomaster_t prev_robomas[ROBOMAS_NUM] = {{0},{0},{0},{0},{0}};
 pid_t pid[ROBOMAS_NUM] = {
-//{.mode = TARGET_MODE_NONE, .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = MAX_CURRENT}, .angle = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = MOTOR_MAX_RPM/gear_ratio}, .gear_ratio = ROBOMAS_GEAR_RATIO}
-    {.mode= TARGET_MODE_NONE,   .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}, .gear_ratio = ROBOMAS_GEAR_RATIO},
-    {.mode= TARGET_MODE_TORQUE, .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}, .gear_ratio = ROBOMAS_GEAR_RATIO},
-    {.mode= TARGET_MODE_SPEED,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}, .gear_ratio = ROBOMAS_GEAR_RATIO},
-    {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}, .gear_ratio = ROBOMAS_GEAR_RATIO},
-    {.mode= TARGET_MODE_NONE,  .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}, .gear_ratio = ROBOMAS_GEAR_RATIO}
+//  {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}},
+    {.mode= TARGET_MODE_NONE,    },
+    {.mode= TARGET_MODE_NONE, .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}},
+    {.mode= TARGET_MODE_SPEED,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}},
+    {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
+    {.mode= TARGET_MODE_NONE,  .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}}
 };
-int16_t current[ROBOMAS_NUM] = {0,0,0,0,0};//ロボマスに実際に送る電流値
+int16_t current[ROBOMAS_NUM] = {0,0,0,0,0};
 twai_message_t tx_msg = {
     .data_length_code = 8
 };
@@ -20,66 +26,24 @@ TaskHandle_t can_tx_task_handle = NULL;
 
 int32_t robomas_get_position(robomaster_t *r)
 {
-    return r->angle + r->rotation * 8192;
+    return r->angle + r->rotation * ENCODER_RESOLUTION;
 }
 
-void can_rx_task(void *arg)
+float robomas_get_position_rad(robomaster_t *r)
 {
-    twai_message_t rx_msg;
-    while (1) {
-        if (twai_receive(&rx_msg, portMAX_DELAY) == ESP_OK) {
-            if (rx_msg.identifier >= 0x201 && rx_msg.identifier <= 0x208) {
-                int i = rx_msg.identifier - 0x201;
-                prev_robomas[i] = robomas[i];
-
-                robomas[i].angle = (int16_t)((rx_msg.data[0] << 8) | rx_msg.data[1]);
-                robomas[i].speed = robomas[i].speed * 0.1 + ((int16_t)((rx_msg.data[2] << 8) | rx_msg.data[3])) * 0.9;
-                // robomas[i].speed = (int16_t)((rx_msg.data[2] << 8) | rx_msg.data[3]);
-                robomas[i].torque = (int16_t)((rx_msg.data[4] << 8) | rx_msg.data[5]);
-                robomas[i].temperature = (int8_t)rx_msg.data[6];
-                if(robomas[i].angle-prev_robomas[i].angle>4095){
-                    robomas[i].rotation--;
-                }else if(robomas[i].angle-prev_robomas[i].angle<-4096){
-                    robomas[i].rotation++;
-                }
-                robomas[i].abso_angle = robomas[i].angle + robomas[i].rotation*8192; 
-            }
-        }
-    }
-}
-
-esp_err_t can_tx(uint32_t id){
-        //CANメッセージのデータフィールドに電流値を格納
-        tx_msg.identifier = id;
-        int head = 0;
-        if(id==ROBOMASTER_TXID_1)head = 4;
-        for (int i = 0; i < 4; i++) {
-            tx_msg.data[i*2]     = current[i + head] >> 8;
-            tx_msg.data[i*2 + 1] = current[i + head] & 0xFF;
-        }
-        //CANメッセージの送信
-        return twai_transmit(&tx_msg, 0);
-}
-
-void can_tx_task(void *arg)
-{
-    TickType_t last_wake = xTaskGetTickCount();
-    int loop = 2;//制御周期ms sdkconfigでCONFIG_FREERTOS_HZ=1000にしておく
-    while (1) {
-        //PID制御計算
-        for (int i = 0; i < ROBOMAS_NUM; i++) {
-            current[i] = pid_calc(&pid[i], &robomas[i], loop * 0.001f);
-        }
-        can_tx(ROBOMASTER_TXID_0);
-        can_tx(ROBOMASTER_TXID_1);
-        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(loop));
-    }
+    return robomas_get_position(r)
+        * (2.0f * M_PI / ENCODER_RESOLUTION)
+        / r->gear_ratio;
 }
 
 float pid_calc(pid_t *pid, robomaster_t *robomas, float dt)
 { 
-    float calc(target_mode_t mode, float error){
-        pidK_t *pidK = &pid->torque + (mode - 1);
+
+    /**
+    *@brief スピード用のpid計算
+    */
+    float calc_speed(float error){
+        pidK_t *pidK = &pid->speed; 
         float derivative = (error - pidK->prev_error) / dt;
         pidK->prev_error = error;
         // 仮出力
@@ -105,20 +69,20 @@ float pid_calc(pid_t *pid, robomaster_t *robomas, float dt)
             + pidK->Kd * derivative;
             //feedforward
             //静止摩擦打ち消し
-        if(mode == TARGET_MODE_SPEED){
-            if(fabs(robomas->speed) < 10){
-                float target_speed = error + robomas->speed;
-                if(fabs(target_speed) > 1.0) result += 1500 * tanhf(target_speed / 50.0);
-            }
-        }
+        float target_speed = error + robomas->speed;
+        if(fabs(target_speed) > 1.0) result += pidK->feedforward_current * tanhf(target_speed / 50.0);
+        //if(pid->mode == TARGET_MODE_ANGLE)
+        //result += mgrsinθ;
 
 
         // 出力制限
         if (result > pidK->output_limit)result = pidK->output_limit;
         if (result < -pidK->output_limit)result = -pidK->output_limit;
 
-        return result;//mode angle:speed, mode speed:torque, mode torque:do nothing,direct tx;
+        return result;
     }
+
+
     float error;
     float current = 0;
     switch(pid->mode){
@@ -126,33 +90,93 @@ float pid_calc(pid_t *pid, robomaster_t *robomas, float dt)
         case TARGET_MODE_NONE:
             current = pid->target_current;
             break;
-        case TARGET_MODE_TORQUE:
-            // error = pid->target_torque - robomas->torque;
-            // current = calc(TARGET_MODE_TORQUE, error);
-            current = pid->target_torque;
-            break;
         case TARGET_MODE_SPEED:
-            error = pid->target_speed * pid->gear_ratio - robomas->speed;
-            current = calc(TARGET_MODE_SPEED, error);
+            error = pid->target_speed * robomas->gear_ratio - robomas->speed;
+            current = calc_speed(error);
             break;
         case TARGET_MODE_ANGLE:
-            error = pid->target_angle * pid->gear_ratio * ENCODER_RESOLUTION/(2.0 * M_PI) - robomas_get_position(robomas);
-            float speed_cmd = MAX_SPEED_ON_MODE_ANGLE * tanhf(error / 2000.0f);;
-            ////動き出し最低4rpmくらいでカクカク動く幅が200くらい
-            if(fabs(speed_cmd) < 4 && fabs(error)>220){
-                if(speed_cmd > 0) speed_cmd = 4;
-                if(speed_cmd < 0) speed_cmd = -4;
+            error = pid->target_angle  - robomas_get_position_rad(robomas);
+            float speed_cmd = MAX_SPEED_ON_MODE_ANGLE * tanhf(error/0.5);
+            ////動き出し最低保証rpm
+            if(fabs(speed_cmd) > 0.1 ){
+                speed_cmd += copysignf(MOTOR_MIN_SPEED, speed_cmd);
             }
-            current = calc(TARGET_MODE_SPEED, speed_cmd - robomas->speed);
+            current = calc_speed(speed_cmd - robomas->speed);
             break;
     }
-    //フォードフォワード
-    //current += mgrsinθ
+    //ロボマスに送れる最大電流
     if(current > MAX_CURRENT) current = MAX_CURRENT;
     else if(current < -MAX_CURRENT) current = -MAX_CURRENT;
     return (int16_t)current;
 }
 
+void can_rx_task(void *arg)
+{
+    twai_message_t rx_msg;
+    while (1) {
+        if (twai_receive(&rx_msg, portMAX_DELAY) == ESP_OK) {
+            if (rx_msg.identifier >= 0x201 && rx_msg.identifier <= 0x208) {
+                int i = rx_msg.identifier - 0x201;
+                prev_robomas[i] = robomas[i];
+
+                robomas[i].angle = (int16_t)((rx_msg.data[0] << 8) | rx_msg.data[1]);
+                robomas[i].speed = robomas[i].speed * 0.1 + ((int16_t)((rx_msg.data[2] << 8) | rx_msg.data[3])) * 0.9;
+                // robomas[i].speed = (int16_t)((rx_msg.data[2] << 8) | rx_msg.data[3]);
+                robomas[i].torque = (int16_t)((rx_msg.data[4] << 8) | rx_msg.data[5]);
+                robomas[i].temperature = (int8_t)rx_msg.data[6];
+                if(robomas[i].angle-prev_robomas[i].angle>4095){
+                    robomas[i].rotation--;
+                }else if(robomas[i].angle-prev_robomas[i].angle<-4096){
+                    robomas[i].rotation++;
+                }
+            }
+        }
+    }
+}
+
+esp_err_t can_tx(uint32_t id){
+        //CANメッセージのデータフィールドに電流値を格納
+        tx_msg.identifier = id;
+        int head = 0;
+        if(id==ROBOMASTER_TXID_1)head = 4;
+        for (int i = 0; i < 4; i++) {
+            int idx = i + head;
+
+            int16_t out = 0;
+            if(idx < ROBOMAS_NUM){
+                out = current[idx];
+            }
+
+            tx_msg.data[i*2]     = out >> 8;
+            tx_msg.data[i*2 + 1] = out & 0xFF;
+        }
+        //CANメッセージの送信
+        return twai_transmit(&tx_msg, pdMS_TO_TICKS(1));
+}
+
+void can_tx_task(void *arg)
+{
+    TickType_t last_wake = xTaskGetTickCount();
+    int loop = 2;//制御周期ms sdkconfigでCONFIG_FREERTOS_HZ=1000にしておく
+    while (1) {
+        twai_status_info_t s;
+        twai_get_status_info(&s);
+
+        if(s.state == TWAI_STATE_BUS_OFF){
+            printf("BUS OFF\n");
+            twai_initiate_recovery();
+            vTaskDelay(pdMS_TO_TICKS(1000));
+            continue;
+        }
+        //PID制御計算
+        for (int i = 0; i < ROBOMAS_NUM; i++) {
+            current[i] = pid_calc(&pid[i], &robomas[i], loop * 0.001f);
+        }
+        can_tx(ROBOMASTER_TXID_0);
+        can_tx(ROBOMASTER_TXID_1);
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(loop));
+    }
+}
 
 //don't setting gpio num 6,Bluepad32's flash/spi path interference
 esp_err_t can_driver_install_default_and_start(int tx_gpio,int rx_gpio) {
@@ -169,7 +193,7 @@ void robomas_dump(robomaster_t *rbms){
 void current_dump(int16_t cr[]){
     fprintf(stderr,"currents: ");
     for(int i = 0; i< ROBOMAS_NUM;i++){
-        fprintf(stderr,"%1d: %d\t",i,cr[i]);
+        fprintf(stderr,"%d: %6d | ",i,cr[i]);
     }
     fprintf(stderr,"\n");
 }

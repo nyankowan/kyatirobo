@@ -31,21 +31,18 @@ typedef struct {
     bool PLUS;  // スタートボタン
     bool HOME;  // システムボタン oobイベントで取得可能かも
     bool CAPTURE; // キャプチャボタン
-    int16_t LX;     // 左スティックのX軸: -256～256
-    int16_t LY;     // 左スティックのY軸: -256～256
-    int16_t RX;     // 右スティックのX軸: -256～256
-    int16_t RY;     // 右スティックのY軸: -256～256
+    int16_t LX;     // 左スティックのX軸: -512~512
+    int16_t LY;     // 左スティックのY軸: -512~512
+    int16_t RX;     // 右スティックのX軸: -512~512
+    int16_t RY;     // 右スティックのY軸: -512~512
     uint8_t battery_level; // バッテリー残量 (0-255)
     bool connected; // コントローラーが接続されているかどうか
 } mypad_t;
 
-extern mypad_t mypad;
-extern mypad_t prev_mypad;
 extern const mypad_t EMPTY_MYPAD;
-extern TaskHandle_t controller_task_handle;
 
+mypad_t get_gpdata(mypad_t* mp);
 void convert_gp(uni_gamepad_t *gp, mypad_t *mp);
-void controller_task(void *pvParameters);
 void controller_dump(mypad_t* pad);
 
 #endif // CONTROLLER_H

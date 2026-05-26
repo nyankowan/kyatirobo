@@ -6,19 +6,20 @@
 #define ROBOMASTER_MAX_COUNT 8
 #define ROBOMASTER_TXID_0 0x200
 #define ROBOMASTER_TXID_1 0x1ff
-#define MAX_CURRENT 16384
-#define MAX_SPEED_ON_MODE_ANGLE 500 //モーター軸基準
+#define MAX_CURRENT 16384 //ロボマスに遅れる最大電流値
+#define MAX_SPEED_ON_MODE_ANGLE 300.0 //モーター軸基準
+#define MOTOR_MIN_SPEED 3.0 //モーター軸基準,正常に動く最低rpm
 #define ENCODER_RESOLUTION 8192 //モーター軸基準
 #define MOTOR_MAX_RPM 500.0 //モータ軸基準
-#define ROBOMAS_GEAR_RATIO (3591.0 / 187.0)//大の方
+#define ROBOMAS_M3_GEAR_RATIO (3591.0 / 187.0)//M3508
 
 //PID制御用の構造体
 typedef enum{
-    TARGET_MODE_NONE=0,
-    TARGET_MODE_TORQUE=1,
-    TARGET_MODE_SPEED=2,
-    TARGET_MODE_ANGLE=3
+    TARGET_MODE_NONE,
+    TARGET_MODE_SPEED,
+    TARGET_MODE_ANGLE
 }target_mode_t;
+
 typedef struct{
     float Kp;
     float Ki;
@@ -26,56 +27,75 @@ typedef struct{
     float integral;
     float integral_limit;
     float prev_error;
-    float output_limit;//torqueだとMAX_CURRENT,speedだとMOTOR_MAX_RPM/gear_ratio（MAX_CURRENT）,angleだとMAX_SPEED_ON_MODE_ANGLE(v/r)
+    float feedforward_current;
+    float output_limit;
 }pidK_t;
 
 typedef struct {
     target_mode_t mode;
     union {
-        //target_mode_tの値によって異なる名前を使えるようにしている
-        int16_t target;//ひとまとめにtargetと捉えられるようにする
         int16_t target_current;//TARGET_MODE_NONE
-        int16_t target_torque;//TARRGET_MODE_TORQUE
-        int16_t target_speed;//TARRGET_MODE_SPEED,rpm
-        int16_t target_angle;//TARRGET_MODE_ANGLE,0~8191 one rotation 1 : gear_ratio
+        float target_speed;//TARRGET_MODE_SPEED,rpm
+        float target_angle;//TARRGET_MODE_ANGLE,rad
     };
     pidK_t speed;
-    float gear_ratio;
 } pid_t;
 
 typedef struct {
     int16_t angle;//0~8191,90度2048
-    float speed;//LPFで更新するためfloat
-    int16_t torque;
-    int8_t  temperature;
+    float speed;//rpm,LPFで更新するためfloat
+    int16_t torque;//トルク電流
+    int8_t  temperature;//℃
 
     int rotation;//回転数
-    int abso_angle;//=angle + rotation*8192
-    float gear_ratio;//1 : gear_ratio
+    float gear_ratio;//1:gear_ratio＝モーター軸:出力軸のギア比
 
 } robomaster_t;
 
 extern robomaster_t robomas[];//can_rx_task()で受け取った値を保存する構造体
 extern robomaster_t prev_robomas[];//robomasの以前の値
 extern pid_t pid[]; //PID制御のパラメータと目標値，制御モードを格納するグローバル変数
-extern int16_t current[];
-extern TaskHandle_t can_rx_task_handle;
-extern TaskHandle_t can_tx_task_handle;
-
-int32_t robomas_get_position(robomaster_t *r);
-// PID制御関数のプロトタイプ宣言
-float pid_calc(pid_t *pid, robomaster_t *robomas, float dt);
-
-esp_err_t can_tx(uint32_t id);
+extern int16_t current[];//送る電流値
+extern TaskHandle_t can_rx_task_handle;//can_rx_taskのハンドラー
+extern TaskHandle_t can_tx_task_handle;//can_tx_taskのハンドラー
 
 /**
-ロボマスター専用のTWAI設定
-can_*x_task()を起動する前に実行
+*@brief モーター軸基準のENCODER_RESOLUTIONの解像度で現在の角度を返す
+ */
+int32_t robomas_get_position(robomaster_t *r);
+
+/**
+*@brief 出力軸基準で現在の角度を弧度法で返す
+*/
+float robomas_get_position_rad(robomaster_t *r);
+
+/**
+*@brief ロボマスに送る電流値を一つ計算する．
+*/
+float pid_calc(pid_t *pid, robomaster_t *robomas, float dt);
+
+
+/**
+*@brief ロボマスター専用のTWAI設定
+*       can_*x_task()を起動する前に実行
 */
 esp_err_t can_driver_install_default_and_start(int can_tx_gpio,int can_rx_gpio);
 
-//can通信関数のプロトタイプ宣言
+/**
+*@brief can送信task
+*/
 void can_rx_task(void *arg);
+
+/**
+*@brief current[]の電流値を送る
+*/
+esp_err_t can_tx(uint32_t id);
+
+/**
+*@brief can受信task
+*/
 void can_tx_task(void *arg);
+
+//dump
 void robomas_dump(robomaster_t *rbms);
 void current_dump(int16_t cr[]);

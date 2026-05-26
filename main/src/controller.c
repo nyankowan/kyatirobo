@@ -38,8 +38,7 @@ const mypad_t EMPTY_MYPAD = {
     .connected = false
 };
 
-mypad_t mypad = EMPTY_MYPAD;
-mypad_t prev_mypad = EMPTY_MYPAD;
+static mypad_t mypad = EMPTY_MYPAD;
 TaskHandle_t controller_task_handle = NULL;
 
 #define PRO_CONTROLLER_COD 0b0010010100001000//cod=0x00002508
@@ -109,8 +108,6 @@ static void my_platform_on_device_connected(uni_hid_device_t* d) {
     mypad = EMPTY_MYPAD;
     mypad.battery_level = d->controller.battery;
     mypad.connected = true;
-
-    prev_mypad = EMPTY_MYPAD;
 }
 
 static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
@@ -131,15 +128,12 @@ static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
 
 static void my_platform_on_controller_data(uni_hid_device_t* d, uni_controller_t* ctl) {
     static uni_controller_t prev_ctl = {0};
-    uni_gamepad_t *prev_gp = &prev_ctl.gamepad;
+    // uni_gamepad_t *prev_gp = &prev_ctl.gamepad;
     uni_gamepad_t *gp = &ctl->gamepad;
     uni_gamepad_remap(gp);
-    uni_gamepad_remap(prev_gp);
     // Update mypad
     convert_gp(gp, &mypad);  
     mypad.battery_level = ctl->battery;
-    convert_gp(prev_gp, &prev_mypad);
-    prev_mypad.battery_level = prev_ctl.battery;
 
     if (memcmp(&prev_ctl, ctl, sizeof(*ctl)) == 0) {
         return;
@@ -155,8 +149,6 @@ static const uni_property_t* my_platform_get_property(uni_property_idx_t idx) {
 /**
  * Handle Out-of-Band events sent by Bluepad32. 
  * For example, you can use this to detect when the "system" button of the gamepad is pressed, which is not sent as part of the regular gamepad data. 
- * In this example, we toggle the "seat" of the gamepad between A and B, and trigger the event to update the LEDs and rumble. 
- * You can customize this function to handle other events, such as when Bluetooth is enabled/disabled, etc.
  */
 static void my_platform_on_oob_event(uni_platform_oob_event_t event, void* data) {
 }
@@ -201,6 +193,11 @@ struct uni_platform* get_my_platform(void) {
     return &plat;
 }
 
+
+mypad_t get_gpdata(mypad_t* mp){
+    *mp = mypad;
+    return mypad;
+}
 void convert_gp(uni_gamepad_t *gp, mypad_t *mp){
     mp->A = (gp->buttons & BUTTON_A) ? 1 : 0;
     mp->B = (gp->buttons & BUTTON_B) ? 1 : 0;
@@ -220,15 +217,14 @@ void convert_gp(uni_gamepad_t *gp, mypad_t *mp){
     mp->R = (gp->buttons & BUTTON_SHOULDER_R) ? 1 : 0;
     mp->ZL = (gp->buttons & BUTTON_TRIGGER_L) ? 1 : 0;
     mp->ZR = (gp->buttons & BUTTON_TRIGGER_R) ? 1 : 0;
-    // Convert from -512..511 to -128..127
-    mp->LX = (gp->axis_x * 256) / 512; 
-    mp->LY = (gp->axis_y * 256) / 512;
-    mp->RX = (gp->axis_rx * 256) / 512;
-    mp->RY = (gp->axis_ry * 256) / 512;
+    mp->LX = gp->axis_x;
+    mp->LY = gp->axis_y;
+    mp->RX = gp->axis_rx;
+    mp->RY = gp->axis_ry;
 
     mp->connected = true;
 }
 
 void controller_dump(mypad_t* pad) {
-    ESP_LOGD(CONTROLLER_TAG,"A: %d, B: %d, X: %d, Y: %d, UP: %d, DOWN: %d, LEFT: %d, RIGHT: %d, L: %d, R: %d, ZL: %d, ZR: %d, TL: %d, TR: %d, MINUS: %d, PLUS: %d, HOME: %d, CAPTURE: %d, LX: %d, LY: %d, RX: %d, RY: %d", pad->A, pad->B, pad->X, pad->Y, pad->UP, pad->DOWN, pad->LEFT, pad->RIGHT, pad->L, pad->R, pad->ZL, pad->ZR, pad->TL, pad->TR, pad->MINUS, pad->PLUS, pad->HOME, pad->CAPTURE, pad->LX, pad->LY, pad->RX, pad->RY);
+    ESP_LOGI(CONTROLLER_TAG,"A: %d, B: %d, X: %d, Y: %d, UP: %d, DOWN: %d, LEFT: %d, RIGHT: %d, L: %d, R: %d, ZL: %d, ZR: %d, TL: %d, TR: %d, MINUS: %d, PLUS: %d, HOME: %d, CAPTURE: %d, LX: %2d, LY: %2d, RX: %2d, RY: %2d", pad->A, pad->B, pad->X, pad->Y, pad->UP, pad->DOWN, pad->LEFT, pad->RIGHT, pad->L, pad->R, pad->ZL, pad->ZR, pad->TL, pad->TR, pad->MINUS, pad->PLUS, pad->HOME, pad->CAPTURE, pad->LX, pad->LY, pad->RX, pad->RY);
 }
