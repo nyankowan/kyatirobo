@@ -58,7 +58,6 @@ typedef struct {
 
 extern robomaster_t robomas[];//can_rx_task()で受け取った値を保存する構造体
 extern robomaster_t prev_robomas[];//robomasの以前の値
-extern int init_angle[];//robomasの初期位置
 extern pid_t pid[]; //PID制御のパラメータと目標値，制御モードを格納するグローバル変数
 extern int16_t current[];//送る電流値
 extern TaskHandle_t can_rx_task_handle;//can_rx_taskのハンドラー

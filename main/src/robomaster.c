@@ -19,7 +19,6 @@ pid_t pid[ROBOMAS_NUM] = {
     {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
     {.mode= TARGET_MODE_NONE,  .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}}
 };
-int init_angle[ROBOMAS_NUM] = {0,0,0,0,0};
 int16_t current[ROBOMAS_NUM] = {0,0,0,0,0};
 twai_message_t tx_msg = {
     .data_length_code = 8
