@@ -37,7 +37,7 @@ typedef enum {
  */
 typedef struct {
     servo_range_t range;           // サーボの可動範囲
-    int gpio_num;                  // サーボの制御に使用するGPIO番号
+    gpio_num_t gpio_num;                  // サーボの制御に使用するGPIO番号
     ledc_channel_t channel;        // LEDCチャンネル設定
     ledc_timer_t timer;            // LEDCタイマー設定
     float angle_rad;               // 角度（ラジアン）

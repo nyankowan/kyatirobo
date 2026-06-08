@@ -4,6 +4,7 @@
 #define COORDINATE_TAG "Coordinate"
 #include "coordinate.h"
 #include "esp_log.h"
+#include <math.h>   //コンパイルするとき-lmでリンクする必要がある
 
 polar_t to_polar(direct_t d){
     polar_t p;

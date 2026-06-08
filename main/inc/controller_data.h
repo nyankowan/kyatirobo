@@ -7,9 +7,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include <uni.h>
 
 // mypad構造体の定義
 typedef struct {

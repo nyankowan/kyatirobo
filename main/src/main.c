@@ -12,7 +12,9 @@
 #include "coordinate.h"
 #include "servo.h"
 #include "robomaster.h"
+#include "limitswitch.h"
 
+#include <driver/twai.h>
 #include <driver/ledc.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -21,23 +23,38 @@
 #error "Must use BLUEPAD32_PLATFORM_CUSTOM"
 #endif
 
-#define DEBUG 0
+#define DEBUG 1
 #define MAIN_TAG "main"
 
 // Defined in controller.c
 struct uni_platform* get_my_platform(void);
 
 void controll_task(void *pvParameters);
+void parse_command();
+void exec_command();
+void calibration();
+void init_robomas_position(int num);
 #if DEBUG
 void debug_task(void *arg);
 #endif
 
+#define pushed(button,prev_button) (button == true && prev_button == false)
+#define depushed(button,prev_button) (button == false && prev_button == true)
+
+#define DIRECT_MOVE_SPEED 0.1
+#define POLAR_RATIO (8.0/3.0)
 #define LOOP_MS 30
 
+#define DIRECT_INIT (direct_t){.x = INIT_ANGLE_R, .y = 0.0}
+
 #define SERVO_COUNT 6//サーボの数
+#define LIMITSWITCH_COUNT 4
+
 #define CAN_TX_GPIO 5
 #define CAN_RX_GPIO 4
-int servo_pins[SERVO_COUNT] = {18, 19, 21, 22, 23, 25};//サーボの制御に使用するGPIO番号
+gpio_num_t servo_pins[SERVO_COUNT] = {18, 19, 21, 22, 23, 25};//サーボの制御に使用するGPIO番号
+gpio_num_t limitswitch_pins[LIMITSWITCH_COUNT] = {12, 13, 14, 15}; 
+
 servo_range_t servo_ranges[SERVO_COUNT] = {
     SERVO_RANGE_180, 
     SERVO_RANGE_180, 
@@ -46,13 +63,13 @@ servo_range_t servo_ranges[SERVO_COUNT] = {
     SERVO_RANGE_270, 
     SERVO_RANGE_270
 };//サーボの可動範囲
-
+limitswitch_t limitswitches[LIMITSWITCH_COUNT];
 servo_t servos[SERVO_COUNT];
 mypad_t mypad;
 mypad_t prev_mypad;
 
 //coordinate
-direct_t xy = {3.0, 0.0};
+direct_t xy = DIRECT_INIT;
 
 int app_main(void)
 {
@@ -70,6 +87,9 @@ int app_main(void)
  
     // Init Bluepad32.
     uni_init(0 /* argc */, NULL /* argv */);
+
+    // Initialize GPIO for limitswitch
+    limitswitches_init(limitswitches, limitswitch_pins, LIMITSWITCH_COUNT);
 
     // Initialize LEDC for servo control
     servo_timer_config_default();//デューティ値の範囲は0～65535の16bitタイマー, 周波数は50Hz前提の設定
@@ -92,52 +112,83 @@ int app_main(void)
     return 0;
 }
     
-// Controller task function
+// Controll task
 void controll_task(void *pvParameters) {
     //TickType_t last_wake = xTaskGetTickCount();
-    while (1) {
-        get_gpdata(&mypad);
-        if(!mypad.connected){
-            vTaskDelay(100 / portTICK_PERIOD_MS); // Delay to prevent spamming the console
-            continue;
-        }
-        if(mypad.LEFT){
-            xy.x -= 0.1;
-            if(xy.x < 1.0 && xy.x > -1.0 && xy.y < 1.0 && xy.y > -1.0)xy.x = 1.0;//原点付近への進入禁止
-        }
-        if(mypad.RIGHT){
-            xy.x += 0.1;
-            if(xy.x > -1.0 && xy.x < 1.0 && xy.y < 1.0 && xy.y > -1.0)xy.x = -1.0;//原点付近への進入禁止
-            if(xy.x > 0 && xy.y<0)xy.x = 0.0;//270度以上への進入禁止
-        }
-        if(mypad.UP){
-            xy.y += 0.1;
-            if(xy.y > -1.0 && xy.y < 1.0 && xy.x < 1.0 && xy.x > -1.0)xy.y = -1.0;//原点付近への進入禁止
-        }
-        if(mypad.DOWN){
-            xy.y -= 0.1;
-            if(xy.y > -1.0 && xy.y < 1.0 && xy.x < 1.0 && xy.x > -1.0)xy.y = 1.0;//原点付近への進入禁止
-            if(xy.x > 0 && xy.y < 0)xy.y = 0.0;//0度以下への進入禁止
-        }
-        if(mypad.A == true && prev_mypad.A == false){
-            printf("pressed A");
-        }
-
-        pid[0].target_current = mypad.RY*3;
-        pid[1].target_current = mypad.RY;
-        pid[2].target_speed = (float)mypad.RY / 64.0;//-512~512 / 32 = -8 ~ 8
-        pid[3].target_angle = to_polar(xy).theta;
-        //pid[3].target_angle = (float)mypad.RY * 2*M_PI / 1024.0;
-        pid[4].target_angle = mypad.RY*2;
-        servos[0].angle_rad = to_polar(xy).theta;
-        // Update servo angles based on controller input
-        servos_update_angle(servos, SERVO_COUNT);
-        coordinate_dump(&xy);
+    for(;;
+    //get datas
+    prev_mypad = mypad, 
+    get_gpdata(&mypad))
+    {
+        parse_command();
         // vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(LOOP_MS));//wdt err
         vTaskDelay(LOOP_MS / portTICK_PERIOD_MS); // Delay to prevent spamming the console
-        prev_mypad = mypad;
     }
 }
+
+void parse_command(){
+    if(pushed(mypad.HOME,prev_mypad.HOME)){
+        calibration();
+    }else{
+        exec_command();
+    }
+}
+
+void exec_command(){
+    if(mypad.RIGHT)xy.x += DIRECT_MOVE_SPEED;
+    if(xy.y < 0 && xy.x > 0)xy.x = 0;
+    if(mypad.LEFT)xy.x -= DIRECT_MOVE_SPEED;
+    if(mypad.UP)xy.y += DIRECT_MOVE_SPEED;
+    if(mypad.DOWN)xy.y -= DIRECT_MOVE_SPEED;
+    if(xy.y < 0 && xy.x > 0)xy.y = 0;
+
+    
+
+    pid[0].target_angle = to_polar(xy).theta*POLAR_RATIO;
+    pid[1].target_angle = -to_polar(xy).r;
+
+    pid[2].target_speed = (float)mypad.RY / 64.0;//-512~512 / 32 = -8 ~ 8
+    pid[3].target_angle = to_polar(xy).theta;
+    //pid[3].target_angle = (float)mypad.RY * 2*M_PI / 1024.0;
+
+    pid[4].target_angle = mypad.RY*2;
+
+    servos[0].angle_rad = to_polar(xy).theta;
+    servos_update_angle(servos, SERVO_COUNT);
+}
+
+//極座標アームを初期化する
+void calibration(){
+#define calib_robomas_num  4
+    int calib_done_num = 0;
+    bool calib_done_robomas[calib_robomas_num] = {false,false,false,false};
+    for(int i = 0;i < calib_robomas_num;i++ ){
+        pid[i].mode = TARGET_MODE_SPEED;
+        pid[i].target_speed = 10;
+    }
+    for(;calib_done_num <= calib_robomas_num;get_limitswitches_level(limitswitches, LIMITSWITCH_COUNT)){
+        //TODO:キャリブレーションが終わる条件
+        if(!calib_done_robomas[0] && limitswitches[0].pressed){init_robomas_position(0); calib_done_robomas[0] = true; calib_done_num++;}
+        if(!calib_done_robomas[1] && limitswitches[1].pressed){init_robomas_position(1); calib_done_robomas[1] = true; calib_done_num++;}
+        if(!calib_done_robomas[2] && limitswitches[2].pressed){init_robomas_position(2); calib_done_robomas[2] = true; calib_done_num++;}
+        if(!calib_done_robomas[3] && limitswitches[3].pressed){init_robomas_position(3); calib_done_robomas[3] = true; calib_done_num++;}
+    }
+    for(int i = 0;i < calib_robomas_num;i++ ){
+        pid[i].mode = TARGET_MODE_ANGLE;
+    }
+    xy = DIRECT_INIT;
+}
+
+//呼び出したタイミングの位置を初期位置にする．
+void init_robomas_position(int num){
+    pid[num].mode = TARGET_MODE_SPEED;
+    pid[num].target_speed = 0;
+    init_angle[num] = robomas_get_position_rad(&robomas[num]);
+}
+
+
+
+
 #if DEBUG
 void debug_task(void *arg)
 {
@@ -156,14 +207,15 @@ void debug_task(void *arg)
         printf(
             "state=%d txerr=%lu rxerr=%lu txfail=%lu\n",
             status.state,
-            status.tx_error_counter,
-            status.rx_error_counter,
-            status.tx_failed_count
+            (unsigned long)status.tx_error_counter,
+            (unsigned long)status.rx_error_counter,
+            (unsigned long)status.tx_failed_count
         );
         current_dump(current);
         robomas_dump(&robomas[2]);
         controller_dump(&mypad);
         coordinate_dump(&xy);
+        limitswitches_dump(limitswitches , LIMITSWITCH_COUNT);
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

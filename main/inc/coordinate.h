@@ -1,5 +1,3 @@
-#include <math.h>   //コンパイルするとき-lmでリンクする必要がある
-
 struct direct {
     double x;
     double y;

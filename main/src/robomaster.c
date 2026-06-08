@@ -1,21 +1,25 @@
 #include "robomaster.h"
+#include <math.h>
+#include "driver/twai.h"
 #define ROBOMAS_NUM 5
+
 robomaster_t robomas[ROBOMAS_NUM] = {
-    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO},
-    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO},
-    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO},
-    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO},
-    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO}
+    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO, .init_angle = 0},
+    {.gear_ratio = ROBOMAS_M2_GEAR_RATIO, .init_angle = INIT_ANGLE_R},
+    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO, .init_angle = 0},
+    {.gear_ratio = ROBOMAS_M2_GEAR_RATIO, .init_angle = 0},
+    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO, .init_angle = 0}
 };
 robomaster_t prev_robomas[ROBOMAS_NUM] = {{0},{0},{0},{0},{0}};
 pid_t pid[ROBOMAS_NUM] = {
 //  {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}},
-    {.mode= TARGET_MODE_NONE,    },
-    {.mode= TARGET_MODE_NONE, .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}},
+    {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
+    {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
     {.mode= TARGET_MODE_SPEED,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}},
     {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
     {.mode= TARGET_MODE_NONE,  .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}}
 };
+int init_angle[ROBOMAS_NUM] = {0,0,0,0,0};
 int16_t current[ROBOMAS_NUM] = {0,0,0,0,0};
 twai_message_t tx_msg = {
     .data_length_code = 8
@@ -36,53 +40,51 @@ float robomas_get_position_rad(robomaster_t *r)
         / r->gear_ratio;
 }
 
-float pid_calc(pid_t *pid, robomaster_t *robomas, float dt)
-{ 
-
-    /**
-    *@brief スピード用のpid計算
-    */
-    float calc_speed(float error){
-        pidK_t *pidK = &pid->speed; 
-        float derivative = (error - pidK->prev_error) / dt;
-        pidK->prev_error = error;
-        // 仮出力
-        float result =
-            pidK->Kp * error
-            + pidK->Ki * pidK->integral
-            + pidK->Kd * derivative;
-        // 条件付き積分
-        if (
-            fabs(result) < pidK->output_limit ||
-            (result > 0 && error < 0) ||
-            (result < 0 && error > 0)
-        ) {
-            pidK->integral += error * dt;
-        }
-        // integral clamp
-        if (pidK->integral > pidK->integral_limit)pidK->integral = pidK->integral_limit;
-        if (pidK->integral < -pidK->integral_limit)pidK->integral = -pidK->integral_limit;
-        // 最終出力
-        result =
-            pidK->Kp * error
-            + pidK->Ki * pidK->integral
-            + pidK->Kd * derivative;
-            //feedforward
-            //静止摩擦打ち消し
-        float target_speed = error + robomas->speed;
-        if(fabs(target_speed) > 1.0) result += pidK->feedforward_current * tanhf(target_speed / 50.0);
-        //if(pid->mode == TARGET_MODE_ANGLE)
-        //result += mgrsinθ;
-
-
-        // 出力制限
-        if (result > pidK->output_limit)result = pidK->output_limit;
-        if (result < -pidK->output_limit)result = -pidK->output_limit;
-
-        return result;
+/**
+*@brief スピード用のpid計算
+*/
+float calc_speed(pid_t *pid, float error, float dt){
+    pidK_t *pidK = &pid->speed; 
+    float derivative = (error - pidK->prev_error) / dt;
+    pidK->prev_error = error;
+    // 仮出力
+    float result =
+        pidK->Kp * error
+        + pidK->Ki * pidK->integral
+        + pidK->Kd * derivative;
+    // 条件付き積分
+    if (
+        fabs(result) < pidK->output_limit ||
+        (result > 0 && error < 0) ||
+        (result < 0 && error > 0)
+    ) {
+        pidK->integral += error * dt;
     }
+    // integral clamp
+    if (pidK->integral > pidK->integral_limit)pidK->integral = pidK->integral_limit;
+    if (pidK->integral < -pidK->integral_limit)pidK->integral = -pidK->integral_limit;
+    // 最終出力
+    result =
+        pidK->Kp * error
+        + pidK->Ki * pidK->integral
+        + pidK->Kd * derivative;
+        //feedforward
+        //静止摩擦打ち消し
+    float target_speed = error + robomas->speed;
+    if(fabs(target_speed) > 1.0) result += pidK->feedforward_current * tanhf(target_speed / 50.0);
+    //if(pid->mode == TARGET_MODE_ANGLE)
+    //result += mgrsinθ;
 
 
+    // 出力制限
+    if (result > pidK->output_limit)result = pidK->output_limit;
+    if (result < -pidK->output_limit)result = -pidK->output_limit;
+
+    return result;
+}
+
+float pid_calc(pid_t *pid, robomaster_t *robomas, float dt)
+{   
     float error;
     float current = 0;
     switch(pid->mode){
@@ -92,16 +94,16 @@ float pid_calc(pid_t *pid, robomaster_t *robomas, float dt)
             break;
         case TARGET_MODE_SPEED:
             error = pid->target_speed * robomas->gear_ratio - robomas->speed;
-            current = calc_speed(error);
+            current = calc_speed(pid, error, dt);
             break;
         case TARGET_MODE_ANGLE:
-            error = pid->target_angle  - robomas_get_position_rad(robomas);
-            float speed_cmd = MAX_SPEED_ON_MODE_ANGLE * tanhf(error/0.5);
+            error = pid->target_angle  - (robomas_get_position_rad(robomas) - robomas->init_angle);
+            float speed_cmd = MAX_SPEED_ON_MODE_ANGLE * tanhf(error/0.1);
             ////動き出し最低保証rpm
             if(fabs(speed_cmd) > 0.1 ){
                 speed_cmd += copysignf(MOTOR_MIN_SPEED, speed_cmd);
             }
-            current = calc_speed(speed_cmd - robomas->speed);
+            current = calc_speed(pid, speed_cmd - robomas->speed, dt);
             break;
     }
     //ロボマスに送れる最大電流

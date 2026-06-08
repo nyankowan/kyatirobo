@@ -1,7 +1,6 @@
 // Example file - Public Domain
 // Need help? https://tinyurl.com/bluepad32-help
 #include <string.h>
-#include <uni.h>
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
