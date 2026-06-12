@@ -13,11 +13,11 @@ robomaster_t robomas[ROBOMAS_NUM] = {
 robomaster_t prev_robomas[ROBOMAS_NUM] = {{0},{0},{0},{0},{0}};
 pid_t pid[ROBOMAS_NUM] = {
 //  {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}},
-    {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
-    {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
-    {.mode= TARGET_MODE_SPEED,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}},
-    {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
-    {.mode= TARGET_MODE_NONE,  .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}}
+    {.mode= TARGET_MODE_ANGLE, .anglespeed = 600.0, .anglespeedsensitivity = 2.0, .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
+    {.mode= TARGET_MODE_ANGLE, .anglespeed = 500.0, .anglespeedsensitivity = 7.0, .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
+    {.mode= TARGET_MODE_SPEED, .anglespeed = 600.0, .anglespeedsensitivity = 2.0, .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}},
+    {.mode= TARGET_MODE_ANGLE, .anglespeed = 500.0, .anglespeedsensitivity = 7.0, .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
+    {.mode= TARGET_MODE_NONE,   .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}}
 };
 int16_t current[ROBOMAS_NUM] = {0,0,0,0,0};
 twai_message_t tx_msg = {
@@ -97,7 +97,7 @@ float pid_calc(pid_t *pid, robomaster_t *robomas, float dt)
             break;
         case TARGET_MODE_ANGLE:
             error = pid->target_angle  - (robomas_get_position_rad(robomas) - robomas->init_angle);
-            float speed_cmd = MAX_SPEED_ON_MODE_ANGLE * tanhf(error/0.1);
+            float speed_cmd = pid->anglespeed * tanhf(error*pid->anglespeedsensitivity);
             ////動き出し最低保証rpm
             if(fabs(speed_cmd) > 0.1 ){
                 speed_cmd += copysignf(MOTOR_MIN_SPEED, speed_cmd);

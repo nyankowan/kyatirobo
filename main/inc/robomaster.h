@@ -6,7 +6,6 @@
 #define ROBOMASTER_TXID_0 0x200
 #define ROBOMASTER_TXID_1 0x1ff
 #define MAX_CURRENT 16384 //ロボマスに遅れる最大電流値
-#define MAX_SPEED_ON_MODE_ANGLE 500.0 //モーター軸基準
 #define MOTOR_MIN_SPEED 3.0 //モーター軸基準,正常に動く最低rpm
 #define ENCODER_RESOLUTION 8192 //モーター軸基準
 #define MOTOR_MAX_RPM 500.0 //モータ軸基準
@@ -40,6 +39,8 @@ typedef struct {
         float target_angle;//TARRGET_MODE_ANGLE,出力軸rad
     };
     pidK_t speed;
+    float anglespeed;
+    float anglespeedsensitivity;
 } pid_t;
 
 

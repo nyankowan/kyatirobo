@@ -161,6 +161,8 @@ void exec_command(){
 
 //極座標アームを初期化する
 void calibration(){
+    servos[0].angle_rad = 0;
+    servos_update_angle(servos, SERVO_COUNT);
 #define calib_robomas_num  2
     int calib_done_num = 0;
     bool calib_done_robomas[calib_robomas_num] = {false,false/*,false,false*/};
