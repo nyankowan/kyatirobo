@@ -139,10 +139,17 @@ void parse_command(){
 void exec_command(){
     if(mypad.RIGHT)xy.x += DIRECT_MOVE_SPEED;
     if(xy.y < 0 && xy.x > 0)xy.x = 0;
+    if(to_polar(xy).r < INIT_ANGLE_R)xy.x -= DIRECT_MOVE_SPEED;
+
     if(mypad.LEFT)xy.x -= DIRECT_MOVE_SPEED;
+    if(to_polar(xy).r < INIT_ANGLE_R)xy.x += DIRECT_MOVE_SPEED;
+
     if(mypad.UP)xy.y += DIRECT_MOVE_SPEED;
+    if(to_polar(xy).r < INIT_ANGLE_R)xy.x -= DIRECT_MOVE_SPEED;
+
     if(mypad.DOWN)xy.y -= DIRECT_MOVE_SPEED;
     if(xy.y < 0 && xy.x > 0)xy.y = 0;
+    if(to_polar(xy).r < INIT_ANGLE_R)xy.y += DIRECT_MOVE_SPEED;
 
     
 
