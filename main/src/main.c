@@ -50,6 +50,12 @@ void debug_task(void *arg);
 #define SERVO_COUNT 6//サーボの数
 #define LIMITSWITCH_COUNT 4
 
+//don't use 6-11.these pins for flash memorry
+//0 for boot/reset(pull up)
+//1,3 for UART0
+//2 for boot strap
+//34-39 input only
+//safe to use 4,5,12-15,18-23,25-32(depends on use)
 #define CAN_TX_GPIO 5
 #define CAN_RX_GPIO 4
 gpio_num_t servo_pins[SERVO_COUNT] = {18, 19, 21, 22, 23, 25};//サーボの制御に使用するGPIO番号
