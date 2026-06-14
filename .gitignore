@@ -1,7 +1,4 @@
-CMakeLists.txt
 .vscode/
-.vscode/settings.json
-
 
 # macOS
 .DS_Store
