@@ -184,7 +184,7 @@ esp_err_t can_driver_install_default_and_start(int tx_gpio,int rx_gpio) {
     twai_general_config_t g_config = TWAI_GENERAL_CONFIG_DEFAULT(tx_gpio, rx_gpio, TWAI_MODE_NORMAL);
     twai_timing_config_t t_config = TWAI_TIMING_CONFIG_1MBITS();
     twai_filter_config_t f_config = TWAI_FILTER_CONFIG_ACCEPT_ALL();
-    esp_err_t e = twai_driver_install(&g_config, &t_config, &f_config);//could not find property 12,11
+    esp_err_t e = twai_driver_install(&g_config, &t_config, &f_config);
     if(e != ESP_OK) return e;
     return twai_start();
 }
