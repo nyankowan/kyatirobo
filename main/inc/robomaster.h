@@ -13,41 +13,18 @@
 #define ROBOMAS_M2_GEAR_RATIO 36//M2006
 #define INIT_ANGLE_R 157.0/15//157(mm)/30PI(mm) * 2PI(rad)
 
-//PID制御用の構造体
-typedef enum{
-    TARGET_MODE_NONE,
-    TARGET_MODE_SPEED,
-    TARGET_MODE_ANGLE
-}target_mode_t;
-
 typedef struct{
-    float Kp;
-    float Ki;
-    float Kd;
-    float integral;
-    float integral_limit;
-    float prev_error;
-    float feedforward_current;
-    float output_limit;
-}pidK_t;
-
-typedef struct {
-    target_mode_t mode;
-    union {
-        int16_t target_current;//TARGET_MODE_NONE
-        float target_speed;//TARRGET_MODE_SPEED,出力軸rpm
-        float target_angle;//TARRGET_MODE_ANGLE,出力軸rad
-    };
-    pidK_t speed;
-    float anglespeed;
-    float anglespeedsensitivity;
-} pid_t;
-
+    float position;
+    float velocity;
+    float kp;
+    float kd;
+    float torque;
+}mit_t;
 
 //ロボマスの状態を保存
 typedef struct {
     int16_t angle;//モーター軸 0~8191,90度=2048
-    float speed;//モーター軸rpm,LPFで更新するためfloat
+    int16_t speed;//モーター軸rpm
     int16_t torque;//トルク電流
     int8_t  temperature;//℃
 
@@ -55,12 +32,12 @@ typedef struct {
     float gear_ratio;//1:gear_ratio＝モーター軸:出力軸のギア比
     float init_angle;//出力軸rad
 
+    mit_t *mit;
 } robomaster_t;
 
 extern robomaster_t robomas[];//can_rx_task()で受け取った値を保存する構造体
 extern robomaster_t prev_robomas[];//robomasの以前の値
-extern pid_t pid[]; //PID制御のパラメータと目標値，制御モードを格納するグローバル変数
-extern int16_t current[];//送る電流値
+extern int32_t current[];//送る電流値
 extern TaskHandle_t can_rx_task_handle;//can_rx_taskのハンドラー
 extern TaskHandle_t can_tx_task_handle;//can_tx_taskのハンドラー
 
@@ -74,15 +51,15 @@ int32_t robomas_get_position(robomaster_t *r);
 */
 float robomas_get_position_rad(robomaster_t *r);
 
-
 /**
-*@brief スピード用のpid計算
-*/
-float calc_speed(pid_t *pid, float error, float dt);
+ *@brief mit_tポインタの先に値を代入する
+ *@param mit NULLを渡しても，戻り値を返す
+ */
+mit_t set_mit_t(mit_t *mit, float position, float velocity, float kp, float kd, float torque);
 /**
 *@brief ロボマスに送る電流値を一つ計算する．
 */
-float pid_calc(pid_t *pid, robomaster_t *robomas, float dt);
+float mit_calc(robomaster_t *robomas);
 
 
 /**
@@ -91,10 +68,6 @@ float pid_calc(pid_t *pid, robomaster_t *robomas, float dt);
 */
 esp_err_t can_driver_install_default_and_start(int can_tx_gpio,int can_rx_gpio);
 
-/**
-*@brief can送信task
-*/
-void can_rx_task(void *arg);
 
 /**
 *@brief current[]の電流値を送る
@@ -104,8 +77,13 @@ esp_err_t can_tx(uint32_t id);
 /**
 *@brief can受信task
 */
+void can_rx_task(void *arg);
+
+/**
+*@brief can送信task
+*/
 void can_tx_task(void *arg);
 
 //dump
 void robomas_dump(robomaster_t *rbms);
-void current_dump(int16_t cr[]);
+void current_dump();

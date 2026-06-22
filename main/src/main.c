@@ -33,7 +33,7 @@ void controll_task(void *pvParameters);
 void parse_command();
 void exec_command();
 void calibration();
-void init_robomas_position(int num);
+void init_robomas_position(robomaster_t *robomas);
 #if DEBUG
 void debug_task(void *arg);
 #endif
@@ -46,7 +46,6 @@ void debug_task(void *arg);
 #define LOOP_MS 30
 
 #define DIRECT_INIT (direct_t){.x = INIT_ANGLE_R, .y = 0.0}
-
 #define SERVO_COUNT 6//サーボの数
 #define LIMITSWITCH_COUNT 4
 
@@ -143,31 +142,21 @@ void parse_command(){
 }
 
 void exec_command(){
-    if(mypad.RIGHT)xy.x += DIRECT_MOVE_SPEED;
-    if(xy.y < 0 && xy.x > 0)xy.x = 0;
-    if(to_polar(xy).r < INIT_ANGLE_R)xy.x -= DIRECT_MOVE_SPEED;
+    if (mypad.RIGHT) xy.x += DIRECT_MOVE_SPEED;
+    if (to_polar(xy).r < INIT_ANGLE_R) xy.x -= DIRECT_MOVE_SPEED;
+    if (xy.y < 0 && xy.x > 0) xy.x = 0;
+    if (mypad.LEFT) xy.x -= DIRECT_MOVE_SPEED;
+    if (to_polar(xy).r < INIT_ANGLE_R) xy.x += DIRECT_MOVE_SPEED;
+    if (mypad.UP) xy.y += DIRECT_MOVE_SPEED;
+    if (mypad.DOWN) xy.y -= DIRECT_MOVE_SPEED;
+    if (to_polar(xy).r < INIT_ANGLE_R) xy.y += DIRECT_MOVE_SPEED;
+    if (xy.y < 0 && xy.x > 0) xy.y = 0;
 
-    if(mypad.LEFT)xy.x -= DIRECT_MOVE_SPEED;
-    if(to_polar(xy).r < INIT_ANGLE_R)xy.x += DIRECT_MOVE_SPEED;
-
-    if(mypad.UP)xy.y += DIRECT_MOVE_SPEED;
-    if(to_polar(xy).r < INIT_ANGLE_R)xy.x -= DIRECT_MOVE_SPEED;
-
-    if(mypad.DOWN)xy.y -= DIRECT_MOVE_SPEED;
-    if(xy.y < 0 && xy.x > 0)xy.y = 0;
-    if(to_polar(xy).r < INIT_ANGLE_R)xy.y += DIRECT_MOVE_SPEED;
-
-    
-
-    pid[0].target_angle = to_polar(xy).theta*POLAR_RATIO;
-    pid[1].target_angle = -to_polar(xy).r;
-
-    pid[2].target_speed = (float)mypad.RY / 64.0;//-512~512 / 32 = -8 ~ 8
-    pid[3].target_angle = to_polar(xy).theta;
-    //pid[3].target_angle = (float)mypad.RY * 2*M_PI / 1024.0;
-
-    pid[4].target_angle = mypad.RY*2;
-
+    set_mit_t(robomas[0].mit, 
+        to_polar(xy).theta * POLAR_RATIO, 
+        0.0, 200.0, 10.0, 
+        ((to_polar(xy).theta * POLAR_RATIO > robomas[0].angle)-(to_polar(xy).theta * POLAR_RATIO < robomas[0].angle))*600);
+    set_mit_t(robomas[1].mit, -to_polar(xy).r, 0.0, 200.0, 10.0, 0);
     servos[0].angle_rad = to_polar(xy).theta;
     servos_update_angle(servos, SERVO_COUNT);
 }
@@ -176,37 +165,30 @@ void exec_command(){
 void calibration(){
     servos[0].angle_rad = 0;
     servos_update_angle(servos, SERVO_COUNT);
-#define calib_robomas_num  2
+#define calib_robomas_num  1
     int calib_done_num = 0;
-    bool calib_done_robomas[calib_robomas_num] = {false,false/*,false,false*/};
-    for(int i = 0;i < calib_robomas_num;i++ ){
-        pid[i].mode = TARGET_MODE_SPEED;
-    }
-    pid[0].target_speed = -5;
-    pid[1].target_speed = 10;
-    // pid[2].target_speed = 10;
-    // pid[3].target_speed = 10;
+    bool calib_done_robomas[calib_robomas_num] = {false,/*false,false,false*/};
+    robomas[0].mit->velocity = -5;
+    robomas[1].mit->velocity = 10;
+    // robomas[2].mit->velocity = -5;
+    // robomas[3].mit->velocity = 10;
 
     for(;calib_done_num < calib_robomas_num;get_limitswitches_level(limitswitches, LIMITSWITCH_COUNT)){
         //TODO:キャリブレーションが終わる条件
-        if(!calib_done_robomas[0] && limitswitches[0].pressed){init_robomas_position(0); calib_done_robomas[0] = true; calib_done_num++;}
-        if(!calib_done_robomas[1] && limitswitches[1].pressed){init_robomas_position(1); robomas[1].init_angle += INIT_ANGLE_R;calib_done_robomas[1] = true; calib_done_num++;}
-        // if(!calib_done_robomas[2] && limitswitches[2].pressed){init_robomas_position(2); calib_done_robomas[2] = true; calib_done_num++;}
-        // if(!calib_done_robomas[3] && limitswitches[3].pressed){init_robomas_position(3); calib_done_robomas[3] = true; calib_done_num++;}
+        if(!calib_done_robomas[0] && limitswitches[0].pressed){init_robomas_position(&robomas[0]); calib_done_robomas[0] = true; calib_done_num++;}
+        // if(!calib_done_robomas[1] && limitswitches[1].pressed){init_robomas_position(&robomas[1]); robomas[1].init_angle += INIT_ANGLE_R;calib_done_robomas[1] = true; calib_done_num++;}
+        // if(!calib_done_robomas[2] && limitswitches[2].pressed){init_robomas_position(&robomas[2]); calib_done_robomas[2] = true; calib_done_num++;}
+        // if(!calib_done_robomas[3] && limitswitches[3].pressed){init_robomas_position(&robomas[3]); calib_done_robomas[3] = true; calib_done_num++;}
         vTaskDelay(LOOP_MS / portTICK_PERIOD_MS); // Delay to prevent spamming the console
     }
     xy = DIRECT_INIT;
-    for(int i = 0;i < calib_robomas_num;i++ ){
-        pid[i].mode = TARGET_MODE_ANGLE;
-    }
     fprintf(stderr,"================\ncalib_done\n===============\n");
 }
 
 //呼び出したタイミングの位置を初期位置にする．
-void init_robomas_position(int num){
-    pid[num].mode = TARGET_MODE_SPEED;
-    pid[num].target_speed = 0;
-    robomas[num].init_angle = robomas_get_position_rad(&robomas[num]);
+void init_robomas_position(robomaster_t *robomas){
+    set_mit_t(robomas->mit, 0, 0, 0, robomas->mit->kd, 0);
+    robomas->init_angle = robomas_get_position_rad(robomas);
 }
 
 
@@ -216,7 +198,7 @@ void init_robomas_position(int num){
 void debug_task(void *arg)
 {
     while(1){
-        printf("==================================\n");
+        printf("=====================================================\n");
 
         // printf("tx stack: %u\n",
         //     uxTaskGetStackHighWaterMark(can_tx_task_handle));
@@ -236,8 +218,8 @@ void debug_task(void *arg)
         );
         current_dump(current);
         robomas_dump(&robomas[0]);
-        robomas_dump(&robomas[1]);
-        controller_dump(&mypad);
+        // robomas_dump(&robomas[1]);
+        // controller_dump(&mypad);
         coordinate_dump(&xy);
         limitswitches_dump(limitswitches , LIMITSWITCH_COUNT);
         vTaskDelay(pdMS_TO_TICKS(1000));
