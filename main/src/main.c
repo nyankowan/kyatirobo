@@ -41,10 +41,11 @@ void debug_task(void *arg);
 #define pushed(button,prev_button) (button == true && prev_button == false)
 #define depushed(button,prev_button) (button == false && prev_button == true)
 
-#define DIRECT_MOVE_SPEED 0.1
+#define DIRECT_MOVE_SPEED 0.4
 #define POLAR_RATIO (8.0/3.0)
 #define LOOP_MS 30
 
+#define MAX_R 21
 #define DIRECT_INIT (direct_t){.x = INIT_ANGLE_R, .y = 0.0}
 
 #define SERVO_COUNT 6//サーボの数
@@ -107,7 +108,7 @@ int app_main(void)
         return -1;
     }
     xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2048, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2048, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 4096, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
     xTaskCreatePinnedToCore(controll_task, "controll_task", 4096, NULL, 1, NULL, APP_CPU_NUM);
 #if DEBUG
     xTaskCreate(debug_task, "debug", 4096, NULL, 1, NULL);
@@ -146,16 +147,21 @@ void exec_command(){
     if(mypad.RIGHT)xy.x += DIRECT_MOVE_SPEED;
     if(xy.y < 0 && xy.x > 0)xy.x = 0;
     if(to_polar(xy).r < INIT_ANGLE_R)xy.x -= DIRECT_MOVE_SPEED;
+    if(to_polar(xy).r > MAX_R)xy.x -= DIRECT_MOVE_SPEED;
 
     if(mypad.LEFT)xy.x -= DIRECT_MOVE_SPEED;
     if(to_polar(xy).r < INIT_ANGLE_R)xy.x += DIRECT_MOVE_SPEED;
+    if(to_polar(xy).r > MAX_R)xy.x += DIRECT_MOVE_SPEED;
 
     if(mypad.UP)xy.y += DIRECT_MOVE_SPEED;
     if(to_polar(xy).r < INIT_ANGLE_R)xy.x -= DIRECT_MOVE_SPEED;
+    if(to_polar(xy).r > MAX_R)xy.x -= DIRECT_MOVE_SPEED;
 
     if(mypad.DOWN)xy.y -= DIRECT_MOVE_SPEED;
     if(xy.y < 0 && xy.x > 0)xy.y = 0;
     if(to_polar(xy).r < INIT_ANGLE_R)xy.y += DIRECT_MOVE_SPEED;
+    if(to_polar(xy).r > MAX_R)xy.y += DIRECT_MOVE_SPEED;
+    
 
     
 

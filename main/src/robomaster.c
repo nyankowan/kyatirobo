@@ -1,6 +1,9 @@
 #include "robomaster.h"
 #include <math.h>
 #include "driver/twai.h"
+#include "esp_log.h"
+
+#define ROBOMAS_TAG "robomaster"
 #define ROBOMAS_NUM 5
 
 robomaster_t robomas[ROBOMAS_NUM] = {
@@ -14,7 +17,7 @@ robomaster_t prev_robomas[ROBOMAS_NUM] = {{0},{0},{0},{0},{0}};
 pid_t pid[ROBOMAS_NUM] = {
 //  {.mode= TARGET_MODE_ANGLE,  .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}},
     {.mode= TARGET_MODE_ANGLE, .anglespeed = 600.0, .anglespeedsensitivity = 2.0, .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
-    {.mode= TARGET_MODE_ANGLE, .anglespeed = 500.0, .anglespeedsensitivity = 7.0, .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
+    {.mode= TARGET_MODE_ANGLE, .anglespeed = 800.0, .anglespeedsensitivity = 12.0, .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
     {.mode= TARGET_MODE_SPEED, .anglespeed = 600.0, .anglespeedsensitivity = 2.0, .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .output_limit = MAX_CURRENT}},
     {.mode= TARGET_MODE_ANGLE, .anglespeed = 500.0, .anglespeedsensitivity = 7.0, .speed = {.Kp = 10, .Ki = 0.1, .Kd = 0, .integral = 0, .integral_limit = 10000, .prev_error = 0, .feedforward_current = 1500, .output_limit = MAX_CURRENT}},
     {.mode= TARGET_MODE_NONE,   .speed = {.Kp = 0, .Ki = 0, .Kd = 0, .integral = 0, .integral_limit = 0, .prev_error = 0, .output_limit = 0}}
@@ -164,10 +167,26 @@ void can_tx_task(void *arg)
         twai_get_status_info(&s);
 
         if(s.state == TWAI_STATE_BUS_OFF){
-            printf("BUS OFF\n");
-            twai_initiate_recovery();
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            ESP_LOGE(ROBOMAS_TAG, "BUS OFF");
+            if(twai_initiate_recovery() != ESP_OK){
+                ESP_LOGE(ROBOMAS_TAG, "cant recover");
+            }else{
+                ESP_LOGI(ROBOMAS_TAG, "recovered");
+            }
+            vTaskDelay(pdMS_TO_TICKS(500));
             continue;
+        }else if(s.state == TWAI_STATE_STOPPED){
+            ESP_LOGE(ROBOMAS_TAG, "TWAI STOPPED");
+            if(twai_start() != ESP_OK){
+                ESP_LOGE(ROBOMAS_TAG, "cant start");
+            }else{
+                ESP_LOGI(ROBOMAS_TAG, "started");
+            }
+            vTaskDelay(pdMS_TO_TICKS(500));
+            continue;
+        }else if(s.state == TWAI_STATE_RECOVERING){
+            ESP_LOGI(ROBOMAS_TAG, "TWAI RECOVERING");
+            vTaskDelay(pdMS_TO_TICKS(500));
         }
         //PID制御計算
         for (int i = 0; i < ROBOMAS_NUM; i++) {
