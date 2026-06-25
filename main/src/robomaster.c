@@ -142,11 +142,28 @@ void can_tx_task(void *arg)
         twai_get_status_info(&s);
 
         if(s.state == TWAI_STATE_BUS_OFF){
-            printf("BUS OFF\n");
-            twai_initiate_recovery();
-            vTaskDelay(pdMS_TO_TICKS(1000));
+            ESP_LOGE(ROBOMAS_TAG, "BUS OFF");
+            if(twai_initiate_recovery() != ESP_OK){
+                ESP_LOGE(ROBOMAS_TAG, "cant recover");
+            }else{
+                ESP_LOGI(ROBOMAS_TAG, "recovered");
+            }
+            vTaskDelay(pdMS_TO_TICKS(500));
             continue;
+        }else if(s.state == TWAI_STATE_STOPPED){
+            ESP_LOGE(ROBOMAS_TAG, "TWAI STOPPED");
+            if(twai_start() != ESP_OK){
+                ESP_LOGE(ROBOMAS_TAG, "cant start");
+            }else{
+                ESP_LOGI(ROBOMAS_TAG, "started");
+            }
+            vTaskDelay(pdMS_TO_TICKS(500));
+            continue;
+        }else if(s.state == TWAI_STATE_RECOVERING){
+            ESP_LOGI(ROBOMAS_TAG, "TWAI RECOVERING");
+            vTaskDelay(pdMS_TO_TICKS(500));
         }
+        
         //MIT制御計算
         for (int i = 0; i < ROBOMAS_NUM; i++) {
             current[i] = mit_calc(&robomas[i]);
