@@ -1,8 +1,10 @@
 #include "robomaster.h"
 #include <math.h>
+#include "esp_log.h"
 #include "driver/twai.h"
 #include "freertos/projdefs.h"
 #define ROBOMAS_NUM 5
+#define ROBOMAS_TAG "robomaster"
 
 
 mit_t mit[ROBOMAS_NUM] = {
@@ -57,6 +59,7 @@ mit_t set_mit_t(mit_t *mit, float position, float velocity, float kp, float kd, 
         mit->torque = torque;
         return *mit;
     }else{
+        ESP_LOGW(ROBOMAS_TAG, "mit_t pointer is NULL or else pointer");
         return (mit_t){
             .position = position,
             .velocity = velocity,
@@ -112,7 +115,7 @@ esp_err_t can_tx(uint32_t id){
         if(id == ROBOMASTER_TXID_1) {
             head = 4;
         } else if(id != ROBOMASTER_TXID_0) {
-            printf("can_tx invalid id=0x%03lx\n", id);
+            ESP_LOGE(ROBOMAS_TAG, "can_tx invalid id=0x%03lx\n", id);
             return ESP_ERR_INVALID_ARG;
         }
         for (int i = 0; i < 4; i++) {
@@ -167,7 +170,7 @@ esp_err_t can_driver_install_default_and_start(int tx_gpio,int rx_gpio) {
 }
 
 void robomas_dump(robomaster_t *rbms){
-    fprintf(stderr,"angle:%5d,\tspeed:%5d,\ttorque:%5d,\ttemperature:%5d,\trotation:%d\n",rbms->angle,rbms->speed,rbms->torque,rbms->temperature,rbms->rotation);
+    ESP_LOGI(ROBOMAS_TAG,"angle:%5d,\toutput angle rad: %3.2fspeed:%5d,\ttorque:%5d,\ttemperature:%5d,\trotation:%d\n",rbms->angle, robomas_get_position_rad(rbms), rbms->speed,rbms->torque,rbms->temperature,rbms->rotation);
 }
 
 void current_dump(){
