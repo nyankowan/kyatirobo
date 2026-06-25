@@ -39,6 +39,15 @@ float robomas_get_position_rad(robomaster_t *r)
         / r->gear_ratio;
 }
 
+void robomas_angle_init(robomaster_t *robomas){
+    robomas->init_angle = robomas_get_position_rad(robomas);
+}
+
+void robomas_angle_init_and_stop(robomaster_t *robomas){
+    set_mit_t(robomas->mit, 0, 0, 0, robomas->mit->kd, 0);
+    robomas_angle_init(robomas);
+}
+
 mit_t set_mit_t(mit_t *mit, float position, float velocity, float kp, float kd, float torque){
     if(mit != NULL && sizeof(*mit) == sizeof(mit_t)){
         mit->position = position;

@@ -30,10 +30,8 @@
 struct uni_platform* get_my_platform(void);
 
 void controll_task(void *pvParameters);
-void parse_command();
 void exec_command();
 void calibration();
-void init_robomas_position(robomaster_t *robomas);
 #if DEBUG
 void debug_task(void *arg);
 #endif
@@ -120,24 +118,18 @@ int app_main(void)
 // Controll task
 void controll_task(void *pvParameters) {
     calibration();
-    //TickType_t last_wake = xTaskGetTickCount();
     for(;;
     //get datas
     prev_mypad = mypad, 
     get_gpdata(&mypad),
     get_limitswitches_level(limitswitches, LIMITSWITCH_COUNT))
     {
-        parse_command();
-        // vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(LOOP_MS));//wdt err
-        vTaskDelay(LOOP_MS / portTICK_PERIOD_MS); // Delay to prevent spamming the console
-    }
-}
-
-void parse_command(){
-    if(pushed(mypad.HOME,prev_mypad.HOME)){
-        calibration();
-    }else{
-        exec_command();
+        if(pushed(mypad.HOME,prev_mypad.HOME)){
+            calibration();
+        }else{
+            exec_command();
+        }
+        vTaskDelay(LOOP_MS / portTICK_PERIOD_MS);// vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(LOOP_MS));//wdt err
     }
 }
 
@@ -175,24 +167,15 @@ void calibration(){
 
     for(;calib_done_num < calib_robomas_num;get_limitswitches_level(limitswitches, LIMITSWITCH_COUNT)){
         //TODO:キャリブレーションが終わる条件
-        if(!calib_done_robomas[0] && limitswitches[0].pressed){init_robomas_position(&robomas[0]); calib_done_robomas[0] = true; calib_done_num++;}
-        // if(!calib_done_robomas[1] && limitswitches[1].pressed){init_robomas_position(&robomas[1]); robomas[1].init_angle += INIT_ANGLE_R;calib_done_robomas[1] = true; calib_done_num++;}
-        // if(!calib_done_robomas[2] && limitswitches[2].pressed){init_robomas_position(&robomas[2]); calib_done_robomas[2] = true; calib_done_num++;}
-        // if(!calib_done_robomas[3] && limitswitches[3].pressed){init_robomas_position(&robomas[3]); calib_done_robomas[3] = true; calib_done_num++;}
+        if(!calib_done_robomas[0] && limitswitches[0].pressed){robomas_angle_init_and_stop(&robomas[0]); calib_done_robomas[0] = true; calib_done_num++;}
+        // if(!calib_done_robomas[1] && limitswitches[1].pressed){robomas_angle_init_and_stop(&robomas[1]); robomas[1].init_angle += INIT_ANGLE_R;calib_done_robomas[1] = true; calib_done_num++;}
+        // if(!calib_done_robomas[2] && limitswitches[2].pressed){robomas_angle_init_and_stop(&robomas[2]); calib_done_robomas[2] = true; calib_done_num++;}
+        // if(!calib_done_robomas[3] && limitswitches[3].pressed){robomas_angle_init_and_stop(&robomas[3]); calib_done_robomas[3] = true; calib_done_num++;}
         vTaskDelay(LOOP_MS / portTICK_PERIOD_MS); // Delay to prevent spamming the console
     }
     xy = DIRECT_INIT;
     fprintf(stderr,"================\ncalib_done\n===============\n");
 }
-
-//呼び出したタイミングの位置を初期位置にする．
-void init_robomas_position(robomaster_t *robomas){
-    set_mit_t(robomas->mit, 0, 0, 0, robomas->mit->kd, 0);
-    robomas->init_angle = robomas_get_position_rad(robomas);
-}
-
-
-
 
 #if DEBUG
 void debug_task(void *arg)

@@ -52,6 +52,15 @@ int32_t robomas_get_position(robomaster_t *r);
 float robomas_get_position_rad(robomaster_t *r);
 
 /**
+ *@brief 現在の位置を初期位置にする
+ */
+void robomas_angle_init(robomaster_t *robomas);
+/**
+ *@brief 現在の位置を初期位置にし，モータの速度を0にする
+ */
+void robomas_angle_init_and_stop(robomaster_t *robomas);
+
+/**
  *@brief mit_tポインタの先に値を代入する
  *@param mit NULLを渡しても，戻り値を返す
  */
