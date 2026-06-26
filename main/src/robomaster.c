@@ -79,32 +79,41 @@ float mit_calc(robomaster_t *robomas)
             robomas->mit->torque;
 }
 
-void can_rx_task(void *arg)
+esp_err_t robomas_can_rx(twai_message_t *rx_msg)
 {
-    twai_message_t rx_msg;
-    while (1) {
-        if (twai_receive(&rx_msg, pdMS_TO_TICKS(1)) == ESP_OK) {
-            if (rx_msg.identifier >= 0x201 && rx_msg.identifier <= 0x208) {
-                int i = rx_msg.identifier - 0x201;
+    esp_err_t e = twai_receive(rx_msg, pdMS_TO_TICKS(1));
+    if (e == ESP_OK) {
+        if (rx_msg->identifier >= 0x201 && rx_msg->identifier <= 0x208) {
+                int i = rx_msg->identifier - 0x201;
                 if (i >= 0 && i < ROBOMAS_NUM) {
                     prev_robomas[i] = robomas[i];
 
-                    robomas[i].angle = (int16_t)((rx_msg.data[0] << 8) | rx_msg.data[1]);
-                    robomas[i].speed = (int16_t)((rx_msg.data[2] << 8) | rx_msg.data[3]);
-                    robomas[i].torque = (int16_t)((rx_msg.data[4] << 8) | rx_msg.data[5]);
-                    robomas[i].temperature = (int8_t)rx_msg.data[6];
+                    robomas[i].angle = (int16_t)((rx_msg->data[0] << 8) | rx_msg->data[1]);
+                    robomas[i].speed = (int16_t)((rx_msg->data[2] << 8) | rx_msg->data[3]);
+                    robomas[i].torque = (int16_t)((rx_msg->data[4] << 8) | rx_msg->data[5]);
+                    robomas[i].temperature = (int8_t)rx_msg->data[6];
                     if (robomas[i].angle - prev_robomas[i].angle > 4095) {
                         robomas[i].rotation--;
                     } else if (robomas[i].angle - prev_robomas[i].angle < -4096) {
                         robomas[i].rotation++;
                     }
                 }
-            }
         }
+        return ESP_OK;
+    }else{
+        return e;
     }
 }
 
-esp_err_t can_tx(uint32_t id){
+void robomas_can_rx_task(void *arg)
+{
+    twai_message_t rx_msg;
+    while (1) {
+        robomas_can_rx(&rx_msg);
+    }
+}
+
+esp_err_t robomas_can_tx(uint32_t id){
         //CANメッセージのデータフィールドに電流値を格納
         twai_message_t tx_msg = {
             .data_length_code = 8,
@@ -133,7 +142,7 @@ esp_err_t can_tx(uint32_t id){
         return twai_transmit(&tx_msg, pdMS_TO_TICKS(1));
 }
 
-void can_tx_task(void *arg)
+void robomas_can_tx_task(void *arg)
 {
     TickType_t last_wake = xTaskGetTickCount();
     int loop = 2;//制御周期ms sdkconfigでCONFIG_FREERTOS_HZ=1000にしておく
@@ -171,8 +180,8 @@ void can_tx_task(void *arg)
             if(current[i] < -MAX_CURRENT)current[i] = -MAX_CURRENT;
 
         }
-        can_tx(ROBOMASTER_TXID_0);
-        can_tx(ROBOMASTER_TXID_1);
+        robomas_can_tx(ROBOMASTER_TXID_0);
+        robomas_can_tx(ROBOMASTER_TXID_1);
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(loop));
     }
 }

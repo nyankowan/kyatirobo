@@ -1,6 +1,7 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "hal/twai_types_deprecated.h"
 #include <esp_err.h>
 #define ROBOMASTER_MAX_COUNT 8
 #define ROBOMASTER_TXID_0 0x200
@@ -77,21 +78,25 @@ float mit_calc(robomaster_t *robomas);
 */
 esp_err_t can_driver_install_default_and_start(int can_tx_gpio,int can_rx_gpio);
 
-
+/**
+ *@brief can受信キューからデータを取り出し，ロボマス用のデータをrobomas[]に格納，同時にprev_robomas[]に以前の値を保存．
+ */
+esp_err_t robomas_can_rx(twai_message_t *rx_msg);
 /**
 *@brief current[]の電流値を送る
 */
-esp_err_t can_tx(uint32_t id);
+esp_err_t robomas_can_tx(uint32_t id);
+
 
 /**
 *@brief can受信task
 */
-void can_rx_task(void *arg);
+void robomas_can_rx_task(void *arg);
 
 /**
 *@brief can送信task
 */
-void can_tx_task(void *arg);
+void robomas_can_tx_task(void *arg);
 
 //dump
 void robomas_dump(robomaster_t *rbms);

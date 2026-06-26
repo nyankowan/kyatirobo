@@ -103,8 +103,8 @@ int app_main(void)
         loge("Error: CAN driver install failed\n");
         return -1;
     }
-    xTaskCreatePinnedToCore(can_rx_task, "can_rx_task", 2048, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(can_tx_task, "can_tx_task", 2048, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(robomas_can_rx_task, "can_rx_task", 2048, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(robomas_can_tx_task, "can_tx_task", 2048, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
     xTaskCreatePinnedToCore(controll_task, "controll_task", 4096, NULL, 1, NULL, APP_CPU_NUM);
 #if DEBUG
     xTaskCreate(debug_task, "debug", 4096, NULL, 1, NULL);
