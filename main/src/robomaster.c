@@ -1,29 +1,31 @@
 #include "robomaster.h"
 #include <math.h>
-#include "esp_log.h"
 #include "driver/twai.h"
+#include "esp_err.h"
+#include "esp_log.h"
+#include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
-#define ROBOMAS_NUM 5
 #define ROBOMAS_TAG "robomaster"
+#define TASK_LOOP_MS 2//制御周期ms sdkconfigでCONFIG_FREERTOS_HZ=1000にしておく
 
 
 mit_t mit[ROBOMAS_NUM] = {
-    {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0},
-    {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0},
-    {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0},
-    {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0},
-    {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0},
+    {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0,},
+    {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0,},
+    {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0,},
+    {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0,},
+    // {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0,},
 };
 
 robomaster_t robomas[ROBOMAS_NUM] = {
-    {.gear_ratio = ROBOMAS_M2_GEAR_RATIO, .init_angle = 0,              .mit = &mit[0]},
-    {.gear_ratio = ROBOMAS_M2_GEAR_RATIO, .init_angle = INIT_ANGLE_R,   .mit = &mit[1]},
-    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO, .init_angle = 0,              .mit = &mit[2]},
-    {.gear_ratio = ROBOMAS_M2_GEAR_RATIO, .init_angle = 0,              .mit = &mit[3]},
-    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO, .init_angle = 0,              .mit = &mit[4]},
+    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO, .init_angle = 0, .home_angle = 0,             .precurrent = 800,  .mit = &mit[0],},
+    {.gear_ratio = ROBOMAS_M2_GEAR_RATIO, .init_angle = 0, .home_angle = INIT_ANGLE_R,  .precurrent = 800,  .mit = &mit[1],},
+    {.gear_ratio = ROBOMAS_M3_GEAR_RATIO, .init_angle = 0, .home_angle = 0,             .precurrent = 800,  .mit = &mit[2],},
+    {.gear_ratio = ROBOMAS_M2_GEAR_RATIO, .init_angle = 0, .home_angle = INIT_ANGLE_R,  .precurrent = 800,  .mit = &mit[3],},
+    //{.gear_ratio = ROBOMAS_M2_GEAR_RATIO, .init_angle = 0, .home_angle = 0,             .mit = &mit[4]},
 };
-robomaster_t prev_robomas[ROBOMAS_NUM] = {{0},{0},{0},{0},{0}};
-int32_t current[ROBOMAS_NUM] = {0,0,0,0,0};
+robomaster_t prev_robomas[ROBOMAS_NUM] = {{0},{0},{0},{0},/*{0}:*/};
+int32_t current[ROBOMAS_NUM] = {0,0,0,0,/*0*/};
 
 
 TaskHandle_t can_rx_task_handle = NULL;
@@ -42,7 +44,7 @@ float robomas_get_position_rad(robomaster_t *r)
 }
 
 void robomas_angle_init(robomaster_t *robomas){
-    robomas->init_angle = robomas_get_position_rad(robomas);
+    robomas->init_angle = robomas_get_position_rad(robomas) + robomas->home_angle;
 }
 
 void robomas_angle_init_and_stop(robomaster_t *robomas){
@@ -107,9 +109,11 @@ esp_err_t robomas_can_rx(twai_message_t *rx_msg)
 
 void robomas_can_rx_task(void *arg)
 {
+    TickType_t last_wake = xTaskGetTickCount();
     twai_message_t rx_msg;
     while (1) {
-        robomas_can_rx(&rx_msg);
+        while(robomas_can_rx(&rx_msg) == ESP_OK)
+        vTaskDelayUntil(&last_wake, pdTICKS_TO_MS(TASK_LOOP_MS));
     }
 }
 
@@ -145,44 +149,61 @@ esp_err_t robomas_can_tx(uint32_t id){
 void robomas_can_tx_task(void *arg)
 {
     TickType_t last_wake = xTaskGetTickCount();
-    int loop = 2;//制御周期ms sdkconfigでCONFIG_FREERTOS_HZ=1000にしておく
     while (1) {
-        twai_status_info_t s;
-        twai_get_status_info(&s);
-
-        if(s.state == TWAI_STATE_BUS_OFF){
-            ESP_LOGE(ROBOMAS_TAG, "BUS OFF");
-            if(twai_initiate_recovery() != ESP_OK){
-                ESP_LOGE(ROBOMAS_TAG, "cant recover");
-            }else{
-                ESP_LOGI(ROBOMAS_TAG, "recovered");
-            }
-            vTaskDelay(pdMS_TO_TICKS(500));
+        if(can_error_handling() != TWAI_STATE_RUNNING){
+            vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(TASK_LOOP_MS));
             continue;
-        }else if(s.state == TWAI_STATE_STOPPED){
-            ESP_LOGE(ROBOMAS_TAG, "TWAI STOPPED");
-            if(twai_start() != ESP_OK){
-                ESP_LOGE(ROBOMAS_TAG, "cant start");
-            }else{
-                ESP_LOGI(ROBOMAS_TAG, "started");
-            }
-            vTaskDelay(pdMS_TO_TICKS(500));
-            continue;
-        }else if(s.state == TWAI_STATE_RECOVERING){
-            ESP_LOGI(ROBOMAS_TAG, "TWAI RECOVERING");
-            vTaskDelay(pdMS_TO_TICKS(500));
         }
-        
         //MIT制御計算
         for (int i = 0; i < ROBOMAS_NUM; i++) {
             current[i] = mit_calc(&robomas[i]);
             if(current[i] > MAX_CURRENT)current[i] = MAX_CURRENT;
             if(current[i] < -MAX_CURRENT)current[i] = -MAX_CURRENT;
-
         }
-        robomas_can_tx(ROBOMASTER_TXID_0);
-        robomas_can_tx(ROBOMASTER_TXID_1);
-        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(loop));
+        esp_err_t e;
+        e = robomas_can_tx(ROBOMASTER_TXID_0);
+        if(e)ESP_LOGE(ROBOMAS_TAG,"ERROR %s id 0x%x", esp_err_to_name(e),ROBOMASTER_TXID_0);
+        if(ROBOMAS_NUM > 4){
+            e = robomas_can_tx(ROBOMASTER_TXID_1);
+            if(e)ESP_LOGE(ROBOMAS_TAG,"ERROR %s id 0x%x", esp_err_to_name(e) ,ROBOMASTER_TXID_1);
+        }
+    
+        vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(TASK_LOOP_MS));
+    }
+}
+
+twai_state_t can_error_handling()
+{
+    twai_status_info_t s;
+    twai_get_status_info(&s);
+
+    switch(s.state){
+        case TWAI_STATE_BUS_OFF:
+            ESP_LOGE(ROBOMAS_TAG, "BUS OFF");
+
+            if(twai_initiate_recovery() != ESP_OK){
+                ESP_LOGE(ROBOMAS_TAG, "cant recover");
+            }else{
+                ESP_LOGI(ROBOMAS_TAG, "recover start");
+            }
+            return s.state;
+
+        case TWAI_STATE_STOPPED:
+            ESP_LOGE(ROBOMAS_TAG, "TWAI STOPPED");
+
+            if(twai_start() != ESP_OK){
+                ESP_LOGE(ROBOMAS_TAG, "can't start");
+            }else{
+                ESP_LOGI(ROBOMAS_TAG, "started");
+            }
+            return s.state;
+
+        case TWAI_STATE_RECOVERING:
+            ESP_LOGI(ROBOMAS_TAG, "TWAI RECOVERING");
+
+        case TWAI_STATE_RUNNING:
+        default:
+            return s.state;
     }
 }
 
@@ -196,7 +217,11 @@ esp_err_t can_driver_install_default_and_start(int tx_gpio,int rx_gpio) {
 }
 
 void robomas_dump(robomaster_t *rbms){
-    ESP_LOGI(ROBOMAS_TAG,"angle:%5d,\toutput angle rad: %3.2fspeed:%5d,\ttorque:%5d,\ttemperature:%5d,\trotation:%d\n",rbms->angle, robomas_get_position_rad(rbms), rbms->speed,rbms->torque,rbms->temperature,rbms->rotation);
+    ESP_LOGI(ROBOMAS_TAG,"angle:%5d,\tinit_angle:%5f,\toutput_angle_rad: %3.2f,\tspeed:%5d,\ttorque:%5d,\ttemperature:%5d,\trotation:%d", rbms->angle, rbms->init_angle , robomas_get_position_rad(rbms)-rbms->init_angle, rbms->speed,rbms->torque,rbms->temperature,rbms->rotation);
+}
+
+void mit_dump(mit_t *mit){
+    ESP_LOGI(ROBOMAS_TAG, "pos: %5f,\tvel: %5f,\tkp: %5f,\tkd %5f,\ttor: %5f", mit->position, mit->velocity, mit->kp, mit->kd, mit->torque);
 }
 
 void current_dump(){

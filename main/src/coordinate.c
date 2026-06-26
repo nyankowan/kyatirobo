@@ -15,6 +15,6 @@ polar_t to_polar(direct_t d){
 }
 
 void coordinate_dump(direct_t *xy){
-    ESP_LOGI(COORDINATE_TAG, "XY: (%.2f, %.2f), R: %.2f, Theta: %.2f\n", xy->x, xy->y, to_polar(*xy).r, to_polar(*xy).theta);
+    ESP_LOGI(COORDINATE_TAG, "XY: (%.2f, %.2f), R: %.2f, Theta: %.2f", xy->x, xy->y, to_polar(*xy).r, to_polar(*xy).theta);
 }
 #endif // COORDINATE_H

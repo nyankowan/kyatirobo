@@ -1,3 +1,4 @@
+#include <math.h>
 #include <stdlib.h>
 
 #include <btstack_port_esp32.h>
@@ -104,8 +105,8 @@ int app_main(void)
         return -1;
     }
     xTaskCreatePinnedToCore(robomas_can_rx_task, "can_rx_task", 2048, NULL, 10, &can_rx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(robomas_can_tx_task, "can_tx_task", 2048, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
-    xTaskCreatePinnedToCore(controll_task, "controll_task", 4096, NULL, 1, NULL, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(robomas_can_tx_task, "can_tx_task", 3072, NULL, 5, &can_tx_task_handle, APP_CPU_NUM);
+    xTaskCreatePinnedToCore(controll_task, "controll_task", 3072, NULL, 1, NULL, APP_CPU_NUM);
 #if DEBUG
     xTaskCreate(debug_task, "debug", 4096, NULL, 1, NULL);
 #endif
@@ -133,6 +134,11 @@ void controll_task(void *pvParameters) {
     }
 }
 
+int sign(float f){
+    if(f>0)return 1;
+    if(f<0)return -1;
+    return 0;
+}
 void exec_command(){
     if (mypad.RIGHT) xy.x += DIRECT_MOVE_SPEED;
     if (to_polar(xy).r < INIT_ANGLE_R) xy.x -= DIRECT_MOVE_SPEED;
@@ -144,11 +150,19 @@ void exec_command(){
     if (to_polar(xy).r < INIT_ANGLE_R) xy.y += DIRECT_MOVE_SPEED;
     if (xy.y < 0 && xy.x > 0) xy.y = 0;
 
-    set_mit_t(robomas[0].mit, 
-        to_polar(xy).theta * POLAR_RATIO, 
-        0.0, 200.0, 10.0, 
-        ((to_polar(xy).theta * POLAR_RATIO > robomas[0].angle)-(to_polar(xy).theta * POLAR_RATIO < robomas[0].angle))*600);
-    set_mit_t(robomas[1].mit, -to_polar(xy).r, 0.0, 200.0, 10.0, 0);
+    set_mit_t(  robomas[0].mit, 
+                to_polar(xy).theta * POLAR_RATIO, 
+                0.0,
+                20.0,
+                5.0, 
+                robomas[0].precurrent * sign(to_polar(xy).theta));
+
+    set_mit_t(  robomas[1].mit,
+                -to_polar(xy).r,
+                0.0,
+                20.0,
+                5.0,
+                -robomas[1].precurrent * sign(to_polar(xy).r));
     servos[0].angle_rad = to_polar(xy).theta;
     servos_update_angle(servos, SERVO_COUNT);
 }
@@ -157,24 +171,30 @@ void exec_command(){
 void calibration(){
     servos[0].angle_rad = 0;
     servos_update_angle(servos, SERVO_COUNT);
-#define calib_robomas_num  1
+#define calib_robomas_num  2
     int calib_done_num = 0;
-    bool calib_done_robomas[calib_robomas_num] = {false,/*false,false,false*/};
-    robomas[0].mit->velocity = -5;
-    robomas[1].mit->velocity = 10;
-    // robomas[2].mit->velocity = -5;
-    // robomas[3].mit->velocity = 10;
-
+    bool calib_done_robomas[calib_robomas_num] = {false,false,/*false,false*/};
+    for(int i = 0; i < calib_robomas_num ;i++){
+        set_mit_t(  robomas[i].mit,
+                0,
+                -1 * pow(-1,i),
+                0,
+                20,
+                -robomas[i].precurrent * pow(-1,i));
+    }
+    
     for(;calib_done_num < calib_robomas_num;get_limitswitches_level(limitswitches, LIMITSWITCH_COUNT)){
-        //TODO:キャリブレーションが終わる条件
-        if(!calib_done_robomas[0] && limitswitches[0].pressed){robomas_angle_init_and_stop(&robomas[0]); calib_done_robomas[0] = true; calib_done_num++;}
-        // if(!calib_done_robomas[1] && limitswitches[1].pressed){robomas_angle_init_and_stop(&robomas[1]); robomas[1].init_angle += INIT_ANGLE_R;calib_done_robomas[1] = true; calib_done_num++;}
-        // if(!calib_done_robomas[2] && limitswitches[2].pressed){robomas_angle_init_and_stop(&robomas[2]); calib_done_robomas[2] = true; calib_done_num++;}
-        // if(!calib_done_robomas[3] && limitswitches[3].pressed){robomas_angle_init_and_stop(&robomas[3]); calib_done_robomas[3] = true; calib_done_num++;}
+        for(int i = 0; i < calib_robomas_num; i++){
+            if(!calib_done_robomas[i] && limitswitches[i].pressed){
+                robomas_angle_init_and_stop(&robomas[i]);
+                calib_done_robomas[i] = true;
+                calib_done_num++;
+            }
+        }
         vTaskDelay(LOOP_MS / portTICK_PERIOD_MS); // Delay to prevent spamming the console
     }
     xy = DIRECT_INIT;
-    fprintf(stderr,"================\ncalib_done\n===============\n");
+    fprintf(stderr,"================ calib_done ================\n");
 }
 
 #if DEBUG
@@ -200,8 +220,11 @@ void debug_task(void *arg)
             (unsigned long)status.tx_failed_count
         );
         current_dump(current);
-        robomas_dump(&robomas[0]);
-        // robomas_dump(&robomas[1]);
+        for(int i = 0; i < 2; i++){
+            mit_dump(robomas[i].mit);
+            robomas_dump(&robomas[i]);
+            fprintf(stderr, "\n");
+        }
         // controller_dump(&mypad);
         coordinate_dump(&xy);
         limitswitches_dump(limitswitches , LIMITSWITCH_COUNT);

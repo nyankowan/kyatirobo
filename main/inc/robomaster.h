@@ -1,4 +1,5 @@
 
+#include "driver/twai.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "hal/twai_types_deprecated.h"
@@ -13,6 +14,7 @@
 #define ROBOMAS_M3_GEAR_RATIO (3591.0 / 187.0)//M3508
 #define ROBOMAS_M2_GEAR_RATIO 36//M2006
 #define INIT_ANGLE_R 157.0/15//157(mm)/30PI(mm) * 2PI(rad)
+#define ROBOMAS_NUM 4
 
 typedef struct{
     float position;
@@ -32,6 +34,8 @@ typedef struct {
     int rotation;//モーター軸回転数
     float gear_ratio;//1:gear_ratio＝モーター軸:出力軸のギア比
     float init_angle;//出力軸rad
+    float home_angle;//出力軸rad
+    float precurrent;
 
     mit_t *mit;
 } robomaster_t;
@@ -98,6 +102,9 @@ void robomas_can_rx_task(void *arg);
 */
 void robomas_can_tx_task(void *arg);
 
+twai_state_t can_error_handling();
+
 //dump
 void robomas_dump(robomaster_t *rbms);
+void mit_dump(mit_t *mit);
 void current_dump();
