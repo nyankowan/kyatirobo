@@ -7,7 +7,7 @@
 #include "freertos/projdefs.h"
 #define ROBOMAS_TAG "robomaster"
 #define TASK_LOOP_MS 2//制御周期ms sdkconfigでCONFIG_FREERTOS_HZ=1000にしておく
-
+#define DEBUG_ROBOMAS 0
 
 mit_t mit[ROBOMAS_NUM] = {
     {.position = 0, .velocity = 0, .kp = 0, .kd = 0, .torque = 0,},
@@ -128,7 +128,9 @@ esp_err_t robomas_can_tx(uint32_t id){
         if(id == ROBOMASTER_TXID_1) {
             head = 4;
         } else if(id != ROBOMASTER_TXID_0) {
+            #if DEBUG_ROBOMAS
             ESP_LOGE(ROBOMAS_TAG, "can_tx invalid id=0x%03lx\n", id);
+            #endif
             return ESP_ERR_INVALID_ARG;
         }
         for (int i = 0; i < 4; i++) {
@@ -162,10 +164,14 @@ void robomas_can_tx_task(void *arg)
         }
         esp_err_t e;
         e = robomas_can_tx(ROBOMASTER_TXID_0);
+        #if DEBUG_ROBOMAS
         if(e)ESP_LOGE(ROBOMAS_TAG,"ERROR %s id 0x%x", esp_err_to_name(e),ROBOMASTER_TXID_0);
+        #endif
         if(ROBOMAS_NUM > 4){
             e = robomas_can_tx(ROBOMASTER_TXID_1);
+            #if DEBUG_ROBOMAS
             if(e)ESP_LOGE(ROBOMAS_TAG,"ERROR %s id 0x%x", esp_err_to_name(e) ,ROBOMASTER_TXID_1);
+            #endif
         }
     
         vTaskDelayUntil(&last_wake, pdMS_TO_TICKS(TASK_LOOP_MS));
@@ -179,27 +185,40 @@ twai_state_t can_error_handling()
 
     switch(s.state){
         case TWAI_STATE_BUS_OFF:
+            #if DEBUG_ROBOMAS
             ESP_LOGE(ROBOMAS_TAG, "BUS OFF");
-
+            #endif
             if(twai_initiate_recovery() != ESP_OK){
+                #if DEBUG_ROBOMAS
                 ESP_LOGE(ROBOMAS_TAG, "cant recover");
+                #endif
             }else{
+                #if DEBUG_ROBOMAS
                 ESP_LOGI(ROBOMAS_TAG, "recover start");
+                #endif
             }
             return s.state;
 
         case TWAI_STATE_STOPPED:
+            #if DEBUG_ROBOMAS
             ESP_LOGE(ROBOMAS_TAG, "TWAI STOPPED");
+            #endif
 
             if(twai_start() != ESP_OK){
+                #if DEBUG_ROBOMAS
                 ESP_LOGE(ROBOMAS_TAG, "can't start");
+                #endif
             }else{
+                #if DEBUG_ROBOMAS
                 ESP_LOGI(ROBOMAS_TAG, "started");
+                #endif
             }
             return s.state;
 
         case TWAI_STATE_RECOVERING:
+            #if DEBUG_ROBOMAS
             ESP_LOGI(ROBOMAS_TAG, "TWAI RECOVERING");
+            #endif
 
         case TWAI_STATE_RUNNING:
         default:
